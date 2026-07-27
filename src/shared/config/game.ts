@@ -1,7 +1,4 @@
-/**
- * Central gameplay tuning. Keeping these numbers in one shared module means the
- * server enforces them and the client can display them from the same source.
- */
+/** Central gameplay tuning — the single source of truth for server and client. */
 
 export const Combat = {
 	/** Damage a single player attack deals to an enemy. */

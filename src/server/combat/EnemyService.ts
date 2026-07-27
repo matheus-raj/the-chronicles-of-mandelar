@@ -1,7 +1,6 @@
 /**
- * Spawns and tracks "training dummy" enemies entirely from code, so no manual
- * model-building is needed in Studio. Each dummy is a simple part with a
- * floating health billboard and an `IsEnemy` attribute the client looks for.
+ * Spawns and tracks code-built "training dummy" enemies.
+ * Each dummy carries an `IsEnemy` attribute the client looks for.
  */
 
 import { Workspace } from "@rbxts/services";

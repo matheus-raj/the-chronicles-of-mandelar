@@ -61,6 +61,14 @@ Reach for a class when you need to:
 
 Otherwise, prefer a module of functions.
 
+## Comments and docstrings
+
+- **Docstrings are at most 4 lines**, including the `/**` and `*/` delimiters.
+- **Avoid explaining comments.** Prefer readable code — clear names and small
+  functions — over comments that restate what the code does.
+- When a comment is warranted, explain *why* (non-obvious rationale), not
+  *what*. If you feel the need to explain what the code does, rewrite the code.
+
 ## Practical rules for this codebase (roblox-ts)
 
 - Keep all gameplay tuning in shared config modules; the server enforces it and

@@ -1,8 +1,6 @@
 /**
- * Receives attack requests from clients and resolves them authoritatively:
- * validates the target and range, enforces a per-player cooldown, applies
- * damage, and awards XP when an enemy dies. The client is never trusted to
- * decide whether a hit lands.
+ * Resolves client attack requests authoritatively: validates target, range,
+ * and cooldown, applies damage, and awards XP on kill.
  */
 
 import { Players } from "@rbxts/services";

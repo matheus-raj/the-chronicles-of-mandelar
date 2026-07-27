@@ -1,9 +1,6 @@
 /**
- * Builds the on-screen HUD (level, XP bar, health bar, toast messages) purely
- * from code and keeps it in sync with stats replicated from the server.
- *
- * UI is constructed declaratively via `create()` — each element is described by
- * a props object with nested `Children`, rather than mutated field by field.
+ * Builds the HUD (level, XP bar, health bar, toasts) and keeps it in
+ * sync with stats replicated from the server.
  */
 
 import { Players } from "@rbxts/services";

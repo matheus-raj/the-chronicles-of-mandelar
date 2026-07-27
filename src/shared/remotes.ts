@@ -1,7 +1,4 @@
-/**
- * Type-safe networking definitions (RbxNet). Both the server and client import
- * this same object; RbxNet generates the underlying RemoteEvents automatically.
- */
+/** Type-safe RbxNet definitions shared by server and client. */
 
 import Net from "@rbxts/net";
 import { PlayerStats } from "shared/types";
