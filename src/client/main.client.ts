@@ -1,11 +1,13 @@
 /**
- * Client entry point.
- * Files ending in `.client.ts` compile to LocalScripts that run on each player.
+ * Client entry point. Starts the HUD and attack input.
+ * Compiles to a LocalScript under StarterPlayerScripts.
  */
 
-import { Players } from "@rbxts/services";
 import { GAME_NAME } from "shared/greeting";
+import { Hud } from "client/ui/Hud";
+import { AttackController } from "client/combat/AttackController";
 
-const localPlayer = Players.LocalPlayer;
+print(`[${GAME_NAME}] client starting...`);
 
-print(`${GAME_NAME} loaded for ${localPlayer.Name}`);
+new Hud().start();
+new AttackController().start();

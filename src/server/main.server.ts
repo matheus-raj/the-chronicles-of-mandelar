@@ -1,11 +1,21 @@
 /**
- * Server entry point.
- * Files ending in `.server.ts` compile to Scripts that run on the server.
+ * Server entry point. Wires the game's services together and starts them.
+ * Compiles to a Script under ServerScriptService.
  */
 
-import { Players } from "@rbxts/services";
-import { makeGreeting } from "shared/greeting";
+import { GAME_NAME } from "shared/greeting";
+import { PlayerDataService } from "server/data/PlayerDataService";
+import { EnemyService } from "server/combat/EnemyService";
+import { CombatService } from "server/combat/CombatService";
 
-Players.PlayerAdded.Connect((player) => {
-	print(makeGreeting(player.Name));
-});
+print(`[${GAME_NAME}] server starting...`);
+
+const playerData = new PlayerDataService();
+const enemies = new EnemyService();
+const combat = new CombatService(enemies, playerData);
+
+playerData.start();
+enemies.start();
+combat.start();
+
+print(`[${GAME_NAME}] server ready.`);
