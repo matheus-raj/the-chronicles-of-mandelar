@@ -1,11 +1,6 @@
 /**
- * Owns each player's progression: loads it from the DataStore on join, keeps it
- * in memory during the session, replicates it to the client, and saves on leave.
- *
- * DataStores only work in a published place, or in Studio with
- * "Game Settings > Security > Enable Studio Access to API Services" turned on.
- * When they're unavailable we fall back to in-memory defaults so the game still
- * runs — progress just won't persist across sessions in that case.
+ * Loads, holds, replicates, and persists each player's progression.
+ * Falls back to in-memory data when DataStores are unavailable.
  */
 
 import { DataStoreService, Players } from "@rbxts/services";
@@ -33,12 +28,10 @@ export class PlayerDataService {
 		Players.PlayerAdded.Connect((player) => this.onPlayerAdded(player));
 		Players.PlayerRemoving.Connect((player) => this.onPlayerRemoving(player));
 
-		// Handle players already present (e.g. when the script reloads in Studio).
 		for (const player of Players.GetPlayers()) {
 			this.onPlayerAdded(player);
 		}
 
-		// Best-effort flush of every profile when the server shuts down.
 		game.BindToClose(() => {
 			for (const [player] of this.cache) {
 				this.save(player);
@@ -80,7 +73,6 @@ export class PlayerDataService {
 		this.cache.set(player, data);
 
 		const applyToCharacter = (character: Model) => {
-			// Wait for the Humanoid so we can size its health to the player's level.
 			const humanoid = character.WaitForChild("Humanoid") as Humanoid;
 			this.applyMaxHealth(player, data.level, humanoid);
 			this.push(player, data);
@@ -125,7 +117,7 @@ export class PlayerDataService {
 		const previousMax = hum.MaxHealth;
 		const newMax = maxHealthForLevel(level);
 		hum.MaxHealth = newMax;
-		// Heal by the amount max health increased so a level-up feels rewarding.
+		// Heal by the max-health gain so leveling feels rewarding.
 		hum.Health = math.min(newMax, hum.Health + (newMax - previousMax));
 	}
 

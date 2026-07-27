@@ -1,7 +1,5 @@
 /**
- * Turns a left-click on an enemy into an attack request. The client only asks;
- * the server decides whether the hit is valid. We walk up from the clicked part
- * to find a model tagged with the `IsEnemy` attribute.
+ * Turns a left-click on an enemy into a server attack request.
  */
 
 import { Players, UserInputService } from "@rbxts/services";
@@ -30,7 +28,6 @@ export class AttackController {
 		attackEnemy.SendToServer(enemyModel);
 	}
 
-	/** Walk up the ancestry looking for a Model flagged as an enemy. */
 	private findEnemyModel(part: BasePart): Model | undefined {
 		let current: Instance | undefined = part;
 		while (current !== undefined) {

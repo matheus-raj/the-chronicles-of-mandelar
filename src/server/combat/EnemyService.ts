@@ -1,11 +1,11 @@
 /**
- * Spawns and tracks "training dummy" enemies entirely from code, so no manual
- * model-building is needed in Studio. Each dummy is a simple part with a
- * floating health billboard and an `IsEnemy` attribute the client looks for.
+ * Spawns and tracks code-built "training dummy" enemies.
+ * Each dummy carries an `IsEnemy` attribute the client looks for.
  */
 
 import { Workspace } from "@rbxts/services";
 import { Enemies } from "shared/config/game";
+import { create } from "shared/create";
 
 export interface EnemyHandle {
 	readonly model: Model;
@@ -20,9 +20,7 @@ export class EnemyService {
 	private folder!: Folder;
 
 	public start(): void {
-		this.folder = new Instance("Folder");
-		this.folder.Name = "Enemies";
-		this.folder.Parent = Workspace;
+		this.folder = create("Folder", { Name: "Enemies", Parent: Workspace });
 
 		for (const position of SPAWN_POSITIONS) {
 			this.spawnAt(position);
@@ -55,21 +53,39 @@ export class EnemyService {
 	}
 
 	private spawnAt(position: Vector3): void {
-		const model = new Instance("Model");
-		model.Name = "TrainingDummy";
-		model.SetAttribute("IsEnemy", true);
+		const label = create("TextLabel", {
+			Name: "HealthLabel",
+			Size: UDim2.fromScale(1, 1),
+			BackgroundTransparency: 1,
+			TextColor3: Color3.fromRGB(255, 255, 255),
+			TextStrokeTransparency: 0.4,
+			TextScaled: true,
+			Font: Enum.Font.GothamBold,
+		});
 
-		const body = new Instance("Part");
-		body.Name = "Body";
-		body.Size = new Vector3(3, 5, 3);
-		body.Color = Color3.fromRGB(180, 60, 60);
-		body.Anchored = true;
-		body.Position = position;
-		body.Parent = model;
+		const body = create("Part", {
+			Name: "Body",
+			Size: new Vector3(3, 5, 3),
+			Color: Color3.fromRGB(180, 60, 60),
+			Anchored: true,
+			Position: position,
+			Children: [
+				create("BillboardGui", {
+					Name: "HealthGui",
+					Size: UDim2.fromOffset(120, 30),
+					StudsOffsetWorldSpace: new Vector3(0, 4, 0),
+					AlwaysOnTop: true,
+					Children: [label],
+				}),
+			],
+		});
+
+		const model = create("Model", {
+			Name: "TrainingDummy",
+			Children: [body],
+		});
 		model.PrimaryPart = body;
-
-		const label = this.buildHealthLabel(body);
-
+		model.SetAttribute("IsEnemy", true);
 		model.Parent = this.folder;
 
 		const handle: EnemyHandle = { model, health: Enemies.maxHealth };
@@ -80,27 +96,6 @@ export class EnemyService {
 	private despawn(handle: EnemyHandle): void {
 		this.enemies.delete(handle.model);
 		handle.model.Destroy();
-	}
-
-	private buildHealthLabel(body: Part): TextLabel {
-		const billboard = new Instance("BillboardGui");
-		billboard.Name = "HealthGui";
-		billboard.Size = UDim2.fromOffset(120, 30);
-		billboard.StudsOffsetWorldSpace = new Vector3(0, 4, 0);
-		billboard.AlwaysOnTop = true;
-		billboard.Parent = body;
-
-		const label = new Instance("TextLabel");
-		label.Name = "HealthLabel";
-		label.Size = UDim2.fromScale(1, 1);
-		label.BackgroundTransparency = 1;
-		label.TextColor3 = Color3.fromRGB(255, 255, 255);
-		label.TextStrokeTransparency = 0.4;
-		label.TextScaled = true;
-		label.Font = Enum.Font.GothamBold;
-		label.Parent = billboard;
-
-		return label;
 	}
 
 	private updateHealthLabel(handle: EnemyHandle): void {

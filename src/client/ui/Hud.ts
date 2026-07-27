@@ -1,17 +1,25 @@
 /**
- * Builds the on-screen HUD (level, XP bar, health bar, toast messages) purely
- * from code and keeps it in sync with stats replicated from the server.
+ * Builds the HUD (level, XP bar, health bar, toasts) and keeps it in
+ * sync with stats replicated from the server.
  */
 
 import { Players } from "@rbxts/services";
 import { Remotes } from "shared/remotes";
 import { GAME_NAME } from "shared/greeting";
 import { PlayerStats } from "shared/types";
+import { create, InstanceProps } from "shared/create";
 
 const ACCENT = Color3.fromRGB(90, 170, 255);
 const XP_FILL = Color3.fromRGB(120, 200, 120);
 const HEALTH_FILL = Color3.fromRGB(220, 80, 80);
 const PANEL_BG = Color3.fromRGB(20, 22, 28);
+const WHITE = Color3.fromRGB(255, 255, 255);
+
+interface Bar {
+	frame: Frame;
+	fill: Frame;
+	text: TextLabel;
+}
 
 export class Hud {
 	private levelLabel!: TextLabel;
@@ -49,91 +57,96 @@ export class Hud {
 	private build(): void {
 		const playerGui = Players.LocalPlayer.WaitForChild("PlayerGui");
 
-		const screen = new Instance("ScreenGui");
-		screen.Name = "HUD";
-		screen.ResetOnSpawn = false;
-		screen.IgnoreGuiInset = true;
-		screen.Parent = playerGui;
+		this.levelLabel = this.label({
+			Text: "Level 1",
+			Position: new UDim2(0, 12, 0, 8),
+			Size: UDim2.fromOffset(236, 22),
+			TextSize: 18,
+			TextColor3: ACCENT,
+			TextXAlignment: Enum.TextXAlignment.Left,
+		});
 
-		const panel = new Instance("Frame");
-		panel.Name = "StatsPanel";
-		panel.AnchorPoint = new Vector2(0, 1);
-		panel.Position = new UDim2(0, 16, 1, -16);
-		panel.Size = UDim2.fromOffset(260, 96);
-		panel.BackgroundColor3 = PANEL_BG;
-		panel.BackgroundTransparency = 0.2;
-		panel.Parent = screen;
-		this.corner(panel, 8);
+		const xp = this.bar("XpBar", new UDim2(0, 12, 0, 38), XP_FILL);
+		this.xpFill = xp.fill;
+		this.xpText = xp.text;
 
-		this.levelLabel = this.label(panel, `Level 1`, new UDim2(0, 12, 0, 8), UDim2.fromOffset(236, 22), 18);
-		this.levelLabel.TextColor3 = ACCENT;
-		this.levelLabel.TextXAlignment = Enum.TextXAlignment.Left;
+		const health = this.bar("HealthBar", new UDim2(0, 12, 0, 64), HEALTH_FILL);
+		this.healthFill = health.fill;
+		this.healthText = health.text;
 
-		const [xpBar, xpFill, xpText] = this.bar(panel, new UDim2(0, 12, 0, 38), XP_FILL);
-		this.xpFill = xpFill;
-		this.xpText = xpText;
-		xpBar.Name = "XpBar";
+		this.toast = this.label({
+			Text: "",
+			Position: new UDim2(0.5, -200, 0.18, 0),
+			Size: UDim2.fromOffset(400, 40),
+			TextSize: 24,
+			TextColor3: Color3.fromRGB(255, 230, 120),
+			TextTransparency: 1,
+		});
 
-		const [healthBar, healthFill, healthText] = this.bar(panel, new UDim2(0, 12, 0, 64), HEALTH_FILL);
-		this.healthFill = healthFill;
-		this.healthText = healthText;
-		healthBar.Name = "HealthBar";
-
-		this.toast = this.label(screen, "", new UDim2(0.5, -200, 0.18, 0), UDim2.fromOffset(400, 40), 24);
-		this.toast.AnchorPoint = new Vector2(0, 0);
-		this.toast.TextColor3 = Color3.fromRGB(255, 230, 120);
-		this.toast.TextTransparency = 1;
+		create("ScreenGui", {
+			Name: "HUD",
+			ResetOnSpawn: false,
+			IgnoreGuiInset: true,
+			Children: [
+				create("Frame", {
+					Name: "StatsPanel",
+					AnchorPoint: new Vector2(0, 1),
+					Position: new UDim2(0, 16, 1, -16),
+					Size: UDim2.fromOffset(260, 96),
+					BackgroundColor3: PANEL_BG,
+					BackgroundTransparency: 0.2,
+					Children: [this.corner(8), this.levelLabel, xp.frame, health.frame],
+				}),
+				this.toast,
+			],
+			Parent: playerGui,
+		});
 
 		this.render({ level: 1, xp: 0, xpToNext: 100, health: 100, maxHealth: 100 });
 		print(`[${GAME_NAME}] HUD ready.`);
 	}
 
-	private bar(parent: Instance, position: UDim2, fillColor: Color3): [Frame, Frame, TextLabel] {
-		const bar = new Instance("Frame");
-		bar.Position = position;
-		bar.Size = UDim2.fromOffset(236, 20);
-		bar.BackgroundColor3 = Color3.fromRGB(45, 48, 56);
-		bar.Parent = parent;
-		this.corner(bar, 6);
+	private bar(name: string, position: UDim2, fillColor: Color3): Bar {
+		const fill = create("Frame", {
+			Name: "Fill",
+			Size: UDim2.fromScale(0, 1),
+			BackgroundColor3: fillColor,
+			BorderSizePixel: 0,
+			Children: [this.corner(6)],
+		});
 
-		const fill = new Instance("Frame");
-		fill.Name = "Fill";
-		fill.Size = UDim2.fromScale(0, 1);
-		fill.BackgroundColor3 = fillColor;
-		fill.BorderSizePixel = 0;
-		fill.Parent = bar;
-		this.corner(fill, 6);
+		const text = create("TextLabel", {
+			Name: "Text",
+			Size: UDim2.fromScale(1, 1),
+			BackgroundTransparency: 1,
+			TextColor3: WHITE,
+			TextStrokeTransparency: 0.5,
+			TextScaled: true,
+			Font: Enum.Font.GothamMedium,
+		});
 
-		const text = new Instance("TextLabel");
-		text.Name = "Text";
-		text.Size = UDim2.fromScale(1, 1);
-		text.BackgroundTransparency = 1;
-		text.TextColor3 = Color3.fromRGB(255, 255, 255);
-		text.TextStrokeTransparency = 0.5;
-		text.TextScaled = true;
-		text.Font = Enum.Font.GothamMedium;
-		text.Parent = bar;
+		const frame = create("Frame", {
+			Name: name,
+			Position: position,
+			Size: UDim2.fromOffset(236, 20),
+			BackgroundColor3: Color3.fromRGB(45, 48, 56),
+			Children: [this.corner(6), fill, text],
+		});
 
-		return [bar, fill, text];
+		return { frame, fill, text };
 	}
 
-	private label(parent: Instance, text: string, position: UDim2, size: UDim2, textSize: number): TextLabel {
-		const label = new Instance("TextLabel");
-		label.Text = text;
-		label.Position = position;
-		label.Size = size;
-		label.BackgroundTransparency = 1;
-		label.TextColor3 = Color3.fromRGB(255, 255, 255);
-		label.TextStrokeTransparency = 0.5;
-		label.TextSize = textSize;
-		label.Font = Enum.Font.GothamBold;
-		label.Parent = parent;
-		return label;
+	private label(props: InstanceProps<TextLabel>): TextLabel {
+		return create("TextLabel", {
+			BackgroundTransparency: 1,
+			TextColor3: WHITE,
+			TextStrokeTransparency: 0.5,
+			Font: Enum.Font.GothamBold,
+			...props,
+		});
 	}
 
-	private corner(instance: Instance, radius: number): void {
-		const corner = new Instance("UICorner");
-		corner.CornerRadius = new UDim(0, radius);
-		corner.Parent = instance;
+	private corner(radius: number): UICorner {
+		return create("UICorner", { CornerRadius: new UDim(0, radius) });
 	}
 }
