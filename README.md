@@ -36,6 +36,25 @@ click **Connect**. Your compiled code streams into the place live. Press
 **Play** and check the Output window — you should see the greeting printed by
 `src/server/main.server.ts`.
 
+## Gameplay (current vertical slice)
+
+The first milestone is a complete, code-driven RPG loop:
+
+1. You spawn with stats (level, XP, health) loaded from your saved profile.
+2. Three **training dummies** spawn automatically — no Studio building required.
+3. **Left-click a dummy** within range to attack it (the server validates range
+   and enforces an attack cooldown; the client is never trusted).
+4. When a dummy's HP hits zero it awards XP and respawns after a few seconds.
+5. XP fills the bar; enough XP **levels you up**, raising max health and showing
+   a "Level up!" toast.
+6. Your level/XP is **saved to a DataStore** and reloaded next time you join.
+
+> **DataStore note:** persistence only works in a published place, or in Studio
+> with **Game Settings → Security → _Enable Studio Access to API Services_**
+> turned on. Without it the game still runs — progress just resets each session.
+
+All gameplay numbers live in `src/shared/config/game.ts`, so tuning is one edit.
+
 ## Project layout
 
 ```

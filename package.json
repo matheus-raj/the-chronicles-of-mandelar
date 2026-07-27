@@ -29,6 +29,7 @@
     "typescript-eslint": "^8.0.0"
   },
   "dependencies": {
+    "@rbxts/net": "^3.0.10",
     "@rbxts/services": "^1.6.0"
   }
 }
