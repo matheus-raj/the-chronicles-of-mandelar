@@ -1,0 +1,34 @@
+{
+  "name": "the-chronicles-of-mandelar",
+  "version": "1.0.0",
+  "description": "A Roblox game written in TypeScript with roblox-ts",
+  "private": true,
+  "scripts": {
+    "build": "rbxtsc",
+    "watch": "rbxtsc -w",
+    "serve": "rojo serve",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "prettier": "prettier --check \"src/**/*.{ts,tsx}\"",
+    "prettier:fix": "prettier --write \"src/**/*.{ts,tsx}\""
+  },
+  "keywords": [
+    "roblox",
+    "roblox-ts",
+    "typescript"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@rbxts/compiler-types": "3.0.0-types.0",
+    "@rbxts/types": "^1.0.940",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-roblox-ts": "^1.4.1",
+    "prettier": "^3.0.0",
+    "roblox-ts": "^3.0.0",
+    "typescript": "^5.5.0",
+    "typescript-eslint": "^8.0.0"
+  },
+  "dependencies": {
+    "@rbxts/services": "^1.6.0"
+  }
+}

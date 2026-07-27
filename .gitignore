@@ -1,0 +1,21 @@
+# roblox-ts compiled output
+/out
+/include
+
+# dependencies
+/node_modules
+
+# build metadata
+*.tsbuildinfo
+
+# Roblox place files (built by Rojo)
+*.rbxl
+*.rbxlx
+*.rbxl.lock
+*.rbxlx.lock
+
+# editor / OS
+.DS_Store
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
