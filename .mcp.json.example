@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "Roblox_Studio": {
+      "command": "C:\\Tools\\rbx-studio-mcp.exe",
+      "args": ["--stdio"]
+    }
+  }
+}

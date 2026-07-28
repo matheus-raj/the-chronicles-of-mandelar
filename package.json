@@ -9,7 +9,10 @@
     "serve": "rojo serve",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "prettier": "prettier --check \"src/**/*.{ts,tsx}\"",
-    "prettier:fix": "prettier --write \"src/**/*.{ts,tsx}\""
+    "prettier:fix": "prettier --write \"src/**/*.{ts,tsx}\"",
+    "build:place": "rbxtsc && rojo build -o game.rbxlx",
+    "test:logic": "run-in-roblox --place game.rbxlx --script tests/progression.spec.luau",
+    "test:smoke": "run-in-roblox --place game.rbxlx --script tests/smoke.play.luau"
   },
   "keywords": [
     "roblox",
