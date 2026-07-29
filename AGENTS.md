@@ -76,5 +76,5 @@ Otherwise, prefer a module of functions.
 - Keep the server authoritative — never trust client input for game outcomes.
 - Prefer declarative Instance construction (props object + optional nested
   children) over imperative property assignment.
-- Run `npm run build`, `npm run lint`, and `npm run prettier` before committing;
+- Run `pnpm build`, `pnpm lint`, and `pnpm prettier` before committing;
   CI enforces all three.

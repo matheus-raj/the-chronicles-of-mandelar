@@ -1,8 +1,9 @@
 -- Play-mode smoke test: verifies the server booted and built the world.
 --
--- Because it needs the server Scripts to actually run, use one of:
---   * Roblox Studio MCP `run_script_in_play_mode` tool (with the place open), or
---   * npm run build:place && npm run test:smoke   (run-in-roblox, headless)
+-- Requires play mode, so it runs *only* via the Roblox Studio MCP
+-- `run_script_in_play_mode` tool with the place open. run-in-roblox cannot run
+-- this: it executes at plugin-level security in edit mode, where server Scripts
+-- never start. For a headless equivalent see tests/spawn.spec.luau.
 --
 -- Exits with an error if any assertion fails.
 

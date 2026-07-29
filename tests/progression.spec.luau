@@ -1,8 +1,8 @@
 -- Headless logic tests for progression math (src/shared/config/game.ts).
 --
 -- Run headless:
---   npm run build:place
---   npm run test:logic
+--   pnpm build:place
+--   pnpm test:logic
 -- ...or paste the file contents into the Roblox Studio MCP `run_code` tool
 -- with the built place open in Studio.
 --
@@ -35,7 +35,7 @@ end)
 
 if not okReq then
 	error(
-		"[TEST] Could not require ReplicatedStorage.TS.config.game — run `npm run build:place` first. "
+		"[TEST] Could not require ReplicatedStorage.TS.config.game — run `pnpm build:place` first. "
 			.. tostring(config)
 	)
 end

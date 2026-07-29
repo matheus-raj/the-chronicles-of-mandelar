@@ -1,0 +1,5 @@
+# Rojo maps node_modules/@rbxts into the place (see default.project.json) and
+# roblox-ts uses it as typeRoots. pnpm's default isolated layout puts the real
+# packages under node_modules/.pnpm and leaves only links at the top level, so
+# keep node_modules flat and npm-shaped.
+nodeLinker: hoisted

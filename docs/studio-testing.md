@@ -17,26 +17,32 @@ Both run the same test scripts in [`tests/`](../tests).
 
 ## Prerequisites
 
-You need Node (already used for `npm run build`) plus two Roblox tools.
+You need Node and pnpm (already used for `pnpm build`) plus two Roblox tools.
 
 ### 1. Toolchain: Rojo + run-in-roblox
 
-The cleanest installer is [Rokit](https://github.com/rojo-rbx/rokit). After
-installing Rokit, from the repo root:
+This repo pins both tools in [`rokit.toml`](../rokit.toml), so with
+[Rokit](https://github.com/rojo-rbx/rokit) installed you only need, from the
+repo root:
 
 ```powershell
-rokit init            # only if a rokit.toml doesn't exist yet
-rokit add rojo-rbx/rojo
-rokit add rojo-rbx/run-in-roblox
-rokit install
+rokit self-install   # once per machine — creates ~/.rokit/bin and puts it on PATH
+rokit install        # installs the versions pinned in rokit.toml
 ```
 
-`rokit add` pins the current latest versions for you (no guessing). Verify:
+`rokit self-install` is easy to miss: installing Rokit itself (via winget,
+Homebrew, etc.) does *not* create the directory the tool shims live in, so
+without it `rokit install` reports success and `rojo` still isn't runnable. It
+changes PATH, so **open a new terminal afterwards**. Verify:
 
 ```powershell
 rojo --version
 run-in-roblox --version
 ```
+
+To bump a pinned version, `rokit add rojo-rbx/rojo --force` rewrites
+`rokit.toml` to the current latest — commit the change so everyone moves
+together.
 
 > Alternatives if you don't want Rokit: `cargo install rojo` and
 > `cargo install run-in-roblox` (needs Rust), or grab prebuilt binaries from
@@ -80,9 +86,9 @@ The MCP exposes: `run_code`, `run_script_in_play_mode`, `start_stop_play`,
 
 1. Build and open the place:
    ```powershell
-   npm run build:place        # compiles TS, writes game.rbxlx
+   pnpm build:place        # compiles TS, writes game.rbxlx
    ```
-   Open `game.rbxlx` in Studio (or run `npm run serve` and sync with the Rojo
+   Open `game.rbxlx` in Studio (or run `pnpm serve` and sync with the Rojo
    Studio plugin for live updates).
 2. Enable the Studio MCP plugin (Plugins tab).
 3. In your teleported Claude Code session, the agent can now:
@@ -95,22 +101,41 @@ The MCP exposes: `run_code`, `run_script_in_play_mode`, `start_stop_play`,
 ## Path B — headless (run-in-roblox)
 
 ```powershell
-npm run build:place    # compile + build game.rbxlx
-npm run test:logic     # progression math assertions
-npm run test:smoke     # boots the server, checks the 3 dummies spawn
+pnpm build:place    # compile + build game.rbxlx
+pnpm test:logic     # progression math assertions
+pnpm test:spawn     # EnemyService spawns 3 dummies with full-health labels
 ```
 
 Each command opens Studio, runs the script, and closes. Paste the `[TEST]`
 output back into the cloud session and I'll turn any failure into a fix.
 
+Two things will make these hang or fail, and neither error message says so:
+
+- **Studio must be signed in.** A signed-out Studio opens its login dialog
+  instead of the place, so the script never runs and run-in-roblox dies with
+  `Timeout reached while waiting for Roblox Studio to come online`. Sign in once,
+  manually.
+- **Close Studio first.** run-in-roblox launches its own instance; an already-open
+  one conflicts with it.
+
+`run-in-roblox` runs scripts at **plugin-level security, in edit mode** — server
+`Script`s never execute. Anything that needs a booted server (like
+`smoke.play.luau`) belongs on Path A; headless tests must drive the services
+themselves, the way `spawn.spec.luau` does.
+
 ---
 
 ## What the tests cover
 
-| Script | Checks |
-| --- | --- |
-| `tests/progression.spec.luau` | `xpToNext` / `maxHealthForLevel` curves, core tuning constants, and the level-up loop logic |
-| `tests/smoke.play.luau` | Server boots and `EnemyService` spawns 3 training dummies with the `IsEnemy` attribute and a full-health label |
+| Script | Checks | Runs via |
+| --- | --- | --- |
+| `tests/progression.spec.luau` | `xpToNext` / `maxHealthForLevel` curves, core tuning constants, and the level-up loop logic | Path A or B |
+| `tests/spawn.spec.luau` | `EnemyService.start()` spawns 3 training dummies with the `IsEnemy` attribute and a full-health label | Path A or B |
+| `tests/smoke.play.luau` | The server actually boots: `main.server` wires the services and builds the world unprompted | Path A only |
+
+`spawn.spec.luau` and `smoke.play.luau` overlap on purpose. The first drives
+`EnemyService` directly so it can run headless; only the second proves the boot
+path wires it up at all, which is why it's worth keeping despite needing Studio.
 
 These cover logic and boot health. The *feel* of the game — combat timing,
 HUD readability, whether leveling is satisfying — still needs a human playtest.
