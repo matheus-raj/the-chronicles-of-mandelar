@@ -4,3 +4,9 @@
 # fails locally on Windows while passing on Linux CI. Pinning eol=lf here makes
 # the check mean the same thing everywhere.
 * text=auto eol=lf
+
+# cmd.exe is unreliable with LF-only batch files once labels or multi-line
+# blocks are involved. tools/studio-mcp.cmd happens to work either way today,
+# but pin CRLF so a later edit can't introduce a silent breakage.
+*.cmd text eol=crlf
+*.bat text eol=crlf

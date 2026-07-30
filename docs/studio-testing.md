@@ -50,35 +50,44 @@ together.
 
 ### 2. Roblox Studio MCP server (only needed for path A)
 
-Download the official server and run its installer:
+**Nothing to download.** Current Studio builds ship the MCP proxy themselves as
+`StudioMCP.exe`, inside the active version folder under
+`%LOCALAPPDATA%\Roblox\Versions\`. The older standalone
+[`rbx-studio-mcp.exe`](https://github.com/Roblox/studio-rust-mcp-server) release
+is no longer needed on Windows.
 
-- Windows: [`rbx-studio-mcp.exe`](https://github.com/Roblox/studio-rust-mcp-server/releases/latest/download/rbx-studio-mcp.exe)
-- macOS: [`macOS-rbx-studio-mcp.zip`](https://github.com/Roblox/studio-rust-mcp-server/releases/latest/download/macOS-rbx-studio-mcp.zip)
-
-Running it installs a **Studio plugin** (check the Plugins tab — its icon
-toggles the MCP connection on/off). Keep the downloaded binary somewhere
-stable, e.g. `C:\Tools\rbx-studio-mcp.exe`.
-
-Register it with Claude Code, either way:
-
-```powershell
-# One-off command (writes the project-scoped .mcp.json for you)
-claude mcp add Roblox_Studio -- "C:\Tools\rbx-studio-mcp.exe" --stdio
-```
-
-...or copy the template and edit the path:
+Because that path contains a version hash that changes on every Studio update,
+use [`tools/studio-mcp.cmd`](../tools/studio-mcp.cmd), which resolves the newest
+`StudioMCP.exe` at launch:
 
 ```powershell
 copy .mcp.json.example .mcp.json
-# then edit .mcp.json so "command" points at your rbx-studio-mcp binary
+# then edit .mcp.json so the path points at this repo's tools\studio-mcp.cmd
 ```
 
-`.mcp.json` is git-ignored on purpose — the binary path is specific to your
-machine, and committing it would make cloud sessions try (and fail) to launch a
-Windows binary. `.mcp.json.example` is the shared template.
+> Roblox also writes its own launcher to `%LOCALAPPDATA%\Roblox\mcp.bat`. **Don't
+> use it.** It hardcodes a single Studio version, and its fallback branch is a
+> batch syntax error (`else` on its own line), so it breaks after a Studio
+> update and spews parse errors on stderr meanwhile. `tools/studio-mcp.cmd`
+> exists to avoid that.
 
-The MCP exposes: `run_code`, `run_script_in_play_mode`, `start_stop_play`,
-`get_console_output`, `get_studio_mode`, `insert_model`.
+`.mcp.json` is git-ignored on purpose — the path is specific to your machine, and
+committing it would make cloud sessions try (and fail) to launch a Windows
+binary. `.mcp.json.example` is the shared template.
+
+macOS still needs the standalone server from the
+[studio-rust-mcp-server releases](https://github.com/Roblox/studio-rust-mcp-server/releases/latest);
+`tools/studio-mcp.cmd` is Windows-only.
+
+After editing `.mcp.json`, **restart Claude Code** — MCP servers are loaded at
+startup, so a new one won't appear mid-session.
+
+The MCP is a *proxy*: it returns an empty tool list until Studio is running and
+connected, then surfaces Studio's own tools — `run_code`,
+`run_script_in_play_mode`, `start_stop_play`, `get_console_output`,
+`get_studio_mode`, `insert_model`. Confirm the live list with `/mcp` once Studio
+is up, rather than trusting this list; it comes from Studio and can change
+between Studio versions.
 
 ---
 
