@@ -1,0 +1,6 @@
+# Keep line endings LF in the repository *and* in working trees on every
+# platform. Git for Windows defaults to core.autocrlf=true, which checks files
+# out as CRLF; Prettier defaults to endOfLine "lf", so `pnpm prettier` then
+# fails locally on Windows while passing on Linux CI. Pinning eol=lf here makes
+# the check mean the same thing everywhere.
+* text=auto eol=lf
