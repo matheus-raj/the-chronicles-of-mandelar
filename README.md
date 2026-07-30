@@ -10,7 +10,7 @@ Install these once on your machine:
 
 | Tool | Purpose | Install |
 | ---- | ------- | ------- |
-| [Node.js](https://nodejs.org/) (LTS) | Runs the roblox-ts compiler | Download installer |
+| [Node.js](https://nodejs.org/) 22.13+ | Runs the roblox-ts compiler; pnpm 11 requires it | Download installer |
 | [pnpm](https://pnpm.io/) | Package manager for this repo | `corepack enable pnpm` (may need an admin shell) or `npm install -g pnpm` |
 | [Rojo](https://rojo.space/docs/v7/getting-started/installation/) | Syncs compiled code into Studio | `cargo install rojo` or the [Aftman/Rokit](https://github.com/rojo-rbx/rokit) toolchain manager |
 | [Roblox Studio](https://create.roblox.com/) | The editor/runtime for the game | Download from Roblox |
