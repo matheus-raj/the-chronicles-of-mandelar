@@ -40,6 +40,19 @@ if not okReq then
 	)
 end
 
+-- src/shared/progression.ts — the actual award/bank/death rules the server
+-- runs, not a mirror of them.
+local okProg, progression = pcall(function()
+	return require(ReplicatedStorage.TS.progression)
+end)
+
+if not okProg then
+	error(
+		"[TEST] Could not require ReplicatedStorage.TS.progression — run `pnpm build:place` first. "
+			.. tostring(progression)
+	)
+end
+
 -- xpToNext(level) = floor(100 * level ^ 1.5)
 eq("xpToNext(1)", config.xpToNext(1), 100)
 eq("xpToNext(2)", config.xpToNext(2), 282)
@@ -179,41 +192,125 @@ for index, spawn in config.EnemySpawns do
 	)
 end
 
--- Mirror the server's level-up loop (PlayerDataService.addXp) to guard the loop
--- logic against config drift.
-local function simulateAward(level: number, xp: number, amount: number): (number, number)
-	xp += amount
-	while xp >= config.xpToNext(level) do
-		xp -= config.xpToNext(level)
-		level += 1
-	end
-	return level, xp
+-- The award/bank/death rules, tested on the shared module the server itself
+-- uses (shared/progression.ts) — nothing here mirrors server code.
+
+local function state(level: number, xp: number, bankedXp: number)
+	return { level = level, xp = xp, bankedXp = bankedXp }
+end
+
+do
+	-- Kills earn at-risk XP; nothing is banked until the player says so.
+	local r = progression.awardXp(state(1, 0, 0), 30)
+	eq("award: xp after +30", r.state.xp, 30)
+	eq("award: nothing auto-banks", r.state.bankedXp, 0)
+	eq("award: no level from 30xp", r.state.level, 1)
+	eq("award: levelsGained", r.levelsGained, 0)
+
+	-- Banking protects everything currently held, and reports what it protected.
+	local b = progression.bankXp(r.state)
+	eq("bank: protects all current xp", b.state.bankedXp, 30)
+	eq("bank: xp unchanged", b.state.xp, 30)
+	eq("bank: reports amount newly banked", b.banked, 30)
+
+	-- Banking again with nothing new is a no-op that says so.
+	local b2 = progression.bankXp(b.state)
+	eq("bank: second bank is a no-op", b2.banked, 0)
+
+	-- New XP on top of banked XP stays at risk.
+	local r2 = progression.awardXp(b.state, 40)
+	eq("award: banked survives new gains", r2.state.bankedXp, 30)
+	eq("award: xp accumulates", r2.state.xp, 70)
+
+	-- Death takes only the at-risk portion.
+	local d = progression.applyDeath(r2.state)
+	eq("death: xp resets to banked", d.state.xp, 30)
+	eq("death: reports the loss", d.lost, 40)
+	eq("death: level survives", d.state.level, 1)
+
+	-- Fully banked, death costs nothing.
+	local d2 = progression.applyDeath(d.state)
+	eq("death: fully banked loses nothing", d2.lost, 0)
 end
 
 do
 	-- +300 xp clears level 1 (needs 100); 200 remain, below level 2's 282.
-	local level, xp = simulateAward(1, 0, 300)
-	eq("levelUp: level after +300xp", level, 2)
-	eq("levelUp: xp after +300xp", xp, 200)
+	local r = progression.awardXp(state(1, 0, 0), 300)
+	eq("levelUp: level after +300xp", r.state.level, 2)
+	eq("levelUp: xp after +300xp", r.state.xp, 200)
+	eq("levelUp: levelsGained", r.levelsGained, 1)
+end
+
+do
+	-- +400 xp: 400 clears level 1 (100), the remaining 300 clears level 2 (282).
+	local r = progression.awardXp(state(1, 0, 0), 400)
+	eq("multiLevel: level after +400xp", r.state.level, 3)
+	eq("multiLevel: xp after +400xp", r.state.xp, 18)
+	eq("multiLevel: levelsGained", r.levelsGained, 2)
+end
+
+do
+	-- Level-up cost comes out of the banked portion first: the protected XP
+	-- became a protected level, and the fresh overflow stays at risk.
+	local r = progression.awardXp(state(1, 90, 90), 25)
+	eq("levelUp: consumes banked first — level", r.state.level, 2)
+	eq("levelUp: consumes banked first — xp", r.state.xp, 15)
+	eq("levelUp: consumes banked first — banked", r.state.bankedXp, 0)
+
+	-- The invariant holds through the whole cycle: bankedXp <= xp, always.
+	check("invariant: banked <= xp after level-up", r.state.bankedXp <= r.state.xp)
 end
 
 do
 	-- A single ghoul kill (25 xp) should not level a fresh player.
-	local level, xp = simulateAward(1, 0, config.EnemyKinds.Ghoul.xpReward)
-	eq("oneGhoulKill: level", level, 1)
-	eq("oneGhoulKill: xp", xp, 25)
+	local r = progression.awardXp(state(1, 0, 0), config.EnemyKinds.Ghoul.xpReward)
+	eq("oneGhoulKill: level", r.state.level, 1)
+	eq("oneGhoulKill: xp", r.state.xp, 25)
 end
 
 -- Generalised: no single kill of any type should level a fresh player, or the
 -- first thing a new player attacks hands them a level and the curve means
 -- nothing. Holds for a new enemy type automatically.
 for kind, stats in config.EnemyKinds do
-	local level = simulateAward(1, 0, stats.xpReward)
+	local r = progression.awardXp(state(1, 0, 0), stats.xpReward)
 	check(
 		("oneKill(%s) does not level a fresh player"):format(kind),
-		level == 1,
+		r.state.level == 1,
 		("%d xp vs %d needed"):format(stats.xpReward, config.xpToNext(1))
 	)
+end
+
+-- The Sunwell. Banking must be a moment of safety: the station has to sit on
+-- the map, out of reach of every enemy post's combined aggro + wander drift,
+-- and its prompt must be quick enough to never feel like a chore.
+do
+	local station = config.Banking.stationPosition
+	local halfGround = config.World.groundSize / 2
+	check(
+		"Sunwell: on the ground slab",
+		math.abs(station.X) <= halfGround and math.abs(station.Z) <= halfGround
+	)
+
+	for index, spawn in config.EnemySpawns do
+		local stats = config.EnemyKinds[spawn.kind]
+		local dx = spawn.position.X - station.X
+		local dz = spawn.position.Z - station.Z
+		local distance = math.sqrt(dx ^ 2 + dz ^ 2)
+		local required = stats.aggroRange + stats.wanderRadius
+		check(
+			("Sunwell: safe from EnemySpawns[%d] (%s)"):format(index, spawn.kind),
+			distance > required,
+			("%.1f studs away, needs > %.1f"):format(distance, required)
+		)
+	end
+
+	check("Sunwell: holdSeconds is non-negative", config.Banking.holdSeconds >= 0)
+	check(
+		"Sunwell: holdSeconds is deliberate but not a chore",
+		config.Banking.holdSeconds <= 2,
+		("holdSeconds %.2f"):format(config.Banking.holdSeconds)
+	)
+	check("Sunwell: promptRange is positive", config.Banking.promptRange > 0)
 end
 
 print(("[TEST] DONE — %d passed, %d failed"):format(passed, failed))

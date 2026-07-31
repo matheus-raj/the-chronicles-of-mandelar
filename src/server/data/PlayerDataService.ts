@@ -7,6 +7,7 @@ import { DataStoreService, Players } from "@rbxts/services";
 import { Remotes } from "shared/remotes";
 import { PlayerStats, SavedPlayerData } from "shared/types";
 import { maxHealthForLevel, xpToNext } from "shared/config/game";
+import { applyDeath, awardXp, bankXp } from "shared/progression";
 
 const STORE_NAME = "PlayerData_v1";
 
@@ -41,7 +42,7 @@ function keyFor(player: Player): string {
 }
 
 function defaultData(): SavedPlayerData {
-	return { level: 1, xp: 0 };
+	return { level: 1, xp: 0, bankedXp: 0 };
 }
 
 export class PlayerDataService {
@@ -76,21 +77,37 @@ export class PlayerDataService {
 		const data = this.cache.get(player);
 		if (data === undefined) return;
 
-		data.xp += amount;
+		const { state, levelsGained } = awardXp(data, amount);
+		data.level = state.level;
+		data.xp = state.xp;
+		data.bankedXp = state.bankedXp;
 
-		let leveledUp = false;
-		while (data.xp >= xpToNext(data.level)) {
-			data.xp -= xpToNext(data.level);
-			data.level += 1;
-			leveledUp = true;
-		}
-
-		if (leveledUp) {
+		if (levelsGained > 0) {
 			this.applyMaxHealth(player, data.level);
 			this.notify.SendToPlayer(player, `Level up! You are now level ${data.level}.`);
 		}
 
 		this.push(player, data);
+	}
+
+	/**
+	 * Bank all at-risk XP (the Sunwell's prompt lands here). Returns how much
+	 * was newly protected, so the station can skip its flourish on a no-op.
+	 */
+	public bankXp(player: Player): number {
+		const data = this.cache.get(player);
+		if (data === undefined) return 0;
+
+		const { state, banked } = bankXp(data);
+		data.bankedXp = state.bankedXp;
+
+		if (banked > 0) {
+			this.notify.SendToPlayer(player, `Banked ${banked} XP — it is safe now, even in death.`);
+			this.push(player, data);
+		} else {
+			this.notify.SendToPlayer(player, "Nothing to bank — go earn some XP first.");
+		}
+		return banked;
 	}
 
 	private onPlayerAdded(player: Player): void {
@@ -109,18 +126,25 @@ export class PlayerDataService {
 	}
 
 	/**
-	 * Death penalty: unbanked XP is lost. The level itself is never lost —
-	 * only progress toward the next one resets, so dying is a real cost
-	 * without ever undoing something already earned.
+	 * Death penalty: at-risk XP is lost; banked XP and the level survive.
+	 * Dying is a real cost without ever undoing something already earned —
+	 * or deliberately protected at the Sunwell.
 	 */
 	private onDied(player: Player): void {
 		const data = this.cache.get(player);
 		if (data === undefined) return;
 
-		const lost = data.xp;
-		data.xp = 0;
+		const { state, lost } = applyDeath(data);
+		data.xp = state.xp;
 		this.push(player, data);
-		this.notify.SendToPlayer(player, lost > 0 ? `You have fallen — ${lost} unbanked XP lost.` : "You have fallen.");
+
+		if (lost > 0) {
+			this.notify.SendToPlayer(player, `You have fallen — ${lost} unbanked XP lost.`);
+		} else if (data.bankedXp > 0) {
+			this.notify.SendToPlayer(player, "You have fallen — your banked XP held.");
+		} else {
+			this.notify.SendToPlayer(player, "You have fallen.");
+		}
 	}
 
 	private onPlayerRemoving(player: Player): void {
@@ -134,8 +158,15 @@ export class PlayerDataService {
 
 		const [ok, result] = pcall(() => dataStore.GetAsync(keyFor(player)));
 		if (ok && typeIs(result, "table")) {
-			const saved = result as SavedPlayerData;
-			return { level: saved.level, xp: saved.xp };
+			const saved = result as Partial<SavedPlayerData>;
+			const level = saved.level ?? 1;
+			const xp = saved.xp ?? 0;
+			// Saves from before banking existed carry no bankedXp. Grandfather
+			// that XP as fully banked: those players never had a chance to
+			// protect it, so the new death rule shouldn't retroactively
+			// endanger it. Clamped to keep the bankedXp <= xp invariant.
+			const bankedXp = math.clamp(saved.bankedXp ?? xp, 0, xp);
+			return { level, xp, bankedXp };
 		}
 		if (!ok) {
 			warn(`[PlayerDataService] Failed to load data for ${player.Name}: ${result}`);
@@ -174,6 +205,7 @@ export class PlayerDataService {
 		// future leaderboards — can read progression without a service handle.
 		player.SetAttribute("Level", data.level);
 		player.SetAttribute("XP", data.xp);
+		player.SetAttribute("BankedXP", data.bankedXp);
 	}
 
 	private toStats(player: Player, data: SavedPlayerData): PlayerStats {
@@ -182,6 +214,7 @@ export class PlayerDataService {
 		return {
 			level: data.level,
 			xp: data.xp,
+			bankedXp: data.bankedXp,
 			xpToNext: xpToNext(data.level),
 			health: humanoid?.Health ?? maxHealth,
 			maxHealth,

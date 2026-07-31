@@ -136,6 +136,24 @@ export const EnemySpawns: ReadonlyArray<{ readonly kind: EnemyKindId; readonly p
 	{ kind: "Robot", position: new Vector3(-14, 0, -44) },
 ];
 
+/**
+ * The Sunwell — the banking station where XP at risk becomes XP kept.
+ *
+ * Dying costs unbanked XP, so this beacon is what turns that rule into a
+ * decision: push on for more, or walk back and lock in what you have.
+ * Placement rule (enforced by tests/progression.spec.luau): far enough from
+ * every enemy post that nothing can aggro a player mid-banking — banking is
+ * a moment of safety, not a gamble of its own.
+ */
+export const Banking = {
+	/** Ground position of the beacon — the far side of the spawn pad from every enemy post. */
+	stationPosition: new Vector3(0, 0, 20),
+	/** Seconds the prompt must be held: deliberate, but never a chore. */
+	holdSeconds: 0.75,
+	/** Studs from the beacon within which the "Bank XP" prompt shows. */
+	promptRange: 10,
+} as const;
+
 export const Progression = {
 	baseMaxHealth: 100,
 	/** Additional max health granted per level gained. */

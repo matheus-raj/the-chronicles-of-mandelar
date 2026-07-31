@@ -169,10 +169,10 @@ themselves, the way `spawn.spec.luau` does.
 
 | Script | Checks | Runs via |
 | --- | --- | --- |
-| `tests/progression.spec.luau` | `xpToNext` / `maxHealthForLevel` curves, tuning constants, and the config invariants (range orderings, spawn-pad safety, spawn points on the ground slab) | Path A or B |
+| `tests/progression.spec.luau` | `xpToNext` / `maxHealthForLevel` curves, the award/bank/death rules (the actual `shared/progression.ts` module, not a mirror), tuning constants, and the config invariants (range orderings, spawn-pad and Sunwell safety, spawn points on the ground slab) | Path A or B |
 | `tests/ai.spec.luau` | Every `EnemyBrain` state transition — wander, aggro, chase, attack cooldowns, leash, evade — deterministically, with injected RNG and no players | Path A or B |
 | `tests/spawn.spec.luau` | `EnemyService.start()` spawns every configured enemy on the ground, within wander range of its post | Path A or B |
-| `tests/smoke.play.luau` | The server boots and the game *plays*: world built, weapons granted and equipped, the real attack path validates range/cooldown and deals config damage, enemies behave (aggro → chase → hit), death costs unbanked XP, evade heals and goes home | Path A only |
+| `tests/smoke.play.luau` | The server boots and the game *plays*: world built, weapons granted and equipped, the real attack path validates range/cooldown and deals config damage, banking at the Sunwell protects XP, enemies behave (aggro → chase → hit), death costs only at-risk XP, evade heals and goes home | Path A only |
 
 `spawn.spec.luau` and `smoke.play.luau` overlap on purpose. The first drives
 `EnemyService` directly so it can run headless; only the second proves the boot
