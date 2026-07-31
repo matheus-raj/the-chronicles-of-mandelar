@@ -9,7 +9,32 @@ import { PlayerStats, SavedPlayerData } from "shared/types";
 import { maxHealthForLevel, xpToNext } from "shared/config/game";
 
 const STORE_NAME = "PlayerData_v1";
-const store = DataStoreService.GetDataStore(STORE_NAME);
+
+let store: DataStore | undefined;
+let storeResolved = false;
+
+/**
+ * Resolves the DataStore on first use, or undefined if it isn't available.
+ *
+ * Deliberately lazy and pcall-guarded: `GetDataStore` throws outright in an
+ * unpublished place ("You must publish this place to the web to access
+ * DataStore"), which is every Studio playtest. Called at module scope it would
+ * abort the import, and with it the whole of main.server — so the world never
+ * gets built and no service starts. Failing softly here is what lets the
+ * in-memory fallback below actually take over.
+ */
+function getStore(): DataStore | undefined {
+	if (!storeResolved) {
+		storeResolved = true;
+		const [ok, result] = pcall(() => DataStoreService.GetDataStore(STORE_NAME));
+		if (ok) {
+			store = result as DataStore;
+		} else {
+			warn(`[PlayerDataService] DataStores unavailable, progression will not persist: ${result}`);
+		}
+	}
+	return store;
+}
 
 function keyFor(player: Player): string {
 	return `player_${player.UserId}`;
@@ -88,7 +113,10 @@ export class PlayerDataService {
 	}
 
 	private load(player: Player): SavedPlayerData {
-		const [ok, result] = pcall(() => store.GetAsync(keyFor(player)));
+		const dataStore = getStore();
+		if (dataStore === undefined) return defaultData();
+
+		const [ok, result] = pcall(() => dataStore.GetAsync(keyFor(player)));
 		if (ok && typeIs(result, "table")) {
 			const saved = result as SavedPlayerData;
 			return { level: saved.level, xp: saved.xp };
@@ -103,7 +131,10 @@ export class PlayerDataService {
 		const data = this.cache.get(player);
 		if (data === undefined) return;
 
-		const [ok, err] = pcall(() => store.SetAsync(keyFor(player), data));
+		const dataStore = getStore();
+		if (dataStore === undefined) return;
+
+		const [ok, err] = pcall(() => dataStore.SetAsync(keyFor(player), data));
 		if (!ok) {
 			warn(`[PlayerDataService] Failed to save data for ${player.Name}: ${err}`);
 		}
