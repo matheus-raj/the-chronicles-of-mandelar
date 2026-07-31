@@ -13,6 +13,8 @@ import { create } from "shared/create";
 export interface EnemyHandle {
 	readonly model: Model;
 	readonly kind: EnemyKindId;
+	/** Ground position this enemy belongs to, and returns to when it respawns. */
+	readonly origin: Vector3;
 	health: number;
 }
 
@@ -57,20 +59,24 @@ export class EnemyService {
 
 		if (handle.health > 0) return false;
 
-		// Capture kind and position before destroying the model — the respawn
-		// closure outlives the handle. Note this respawns where it died rather
-		// than at its original post, which is identical today because nothing
-		// moves; revisit if enemies ever get movement.
-		const { kind } = handle;
-		const position = handle.model.GetPivot().Position;
+		// Capture kind and origin before destroying the model — the respawn
+		// closure outlives the handle. Respawning at the stored origin rather
+		// than at the model's pivot matters twice over: the enemy returns to its
+		// post instead of wherever it happened to die, and the pivot is a body
+		// centre while spawnAt expects a ground position, so feeding it back
+		// would lift the enemy half its height further off the floor on every
+		// death.
+		const { kind, origin } = handle;
 		this.despawn(handle);
-		task.delay(EnemyKinds[kind].respawnDelay, () => this.spawnAt(kind, position));
+		task.delay(EnemyKinds[kind].respawnDelay, () => this.spawnAt(kind, origin));
 		return true;
 	}
 
-	private spawnAt(kind: EnemyKindId, position: Vector3): void {
+	/** `origin` is where the enemy's feet go; the body is lifted from there. */
+	private spawnAt(kind: EnemyKindId, origin: Vector3): void {
 		const stats = EnemyKinds[kind];
 		const look = APPEARANCE[kind];
+		const centre = origin.add(new Vector3(0, look.size.Y / 2, 0));
 
 		const label = create("TextLabel", {
 			Name: "HealthLabel",
@@ -87,7 +93,7 @@ export class EnemyService {
 			Size: look.size,
 			Color: look.color,
 			Anchored: true,
-			Position: position,
+			Position: centre,
 			Children: [
 				create("BillboardGui", {
 					Name: "HealthGui",
@@ -108,7 +114,7 @@ export class EnemyService {
 		model.SetAttribute("EnemyKind", kind);
 		model.Parent = this.folder;
 
-		const handle: EnemyHandle = { model, kind, health: stats.maxHealth };
+		const handle: EnemyHandle = { model, kind, origin, health: stats.maxHealth };
 		this.enemies.set(model, handle);
 		this.setLabelText(label, handle);
 	}

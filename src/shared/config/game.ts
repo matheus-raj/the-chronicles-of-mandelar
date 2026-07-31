@@ -1,5 +1,22 @@
 /** Central gameplay tuning — the single source of truth for server and client. */
 
+/**
+ * The ground and where players arrive on it.
+ *
+ * A Rojo-built place starts genuinely empty — no baseplate, no SpawnLocation —
+ * so without this the character spawns into open air, falls past
+ * FallenPartsDestroyHeight, is destroyed, respawns, and falls again. The world
+ * is built in code by WorldService, same as the enemies.
+ */
+export const World = {
+	/** Side length (studs) of the square ground slab. */
+	groundSize: 512,
+	/** Thickness of the slab. Its top face sits at y = 0, so ground level is 0. */
+	groundThickness: 8,
+	/** Side length (studs) of the square spawn pad resting on the ground. */
+	spawnPadSize: 16,
+} as const;
+
 export const Combat = {
 	/** Damage a single player attack deals to an enemy. */
 	attackDamage: 20,
@@ -38,14 +55,18 @@ export const EnemyKinds: { readonly [K in EnemyKindId]: EnemyKind } = {
 /**
  * What spawns where, relative to the world origin.
  *
+ * Positions are *ground* positions — where the enemy's feet go, not the centre
+ * of its body. EnemyService lifts each model by half its own height, so types
+ * of different sizes all stand on the floor from the same y. Ground level is 0.
+ *
  * Lives in config rather than inside EnemyService so the spawn tests can derive
  * what they expect instead of hardcoding counts and names. Adding an enemy to
  * the world is an edit here and nowhere else.
  */
 export const EnemySpawns: ReadonlyArray<{ readonly kind: EnemyKindId; readonly position: Vector3 }> = [
-	{ kind: "Ghoul", position: new Vector3(0, 5, -20) },
-	{ kind: "Ghoul", position: new Vector3(10, 5, -24) },
-	{ kind: "Robot", position: new Vector3(-10, 5, -24) },
+	{ kind: "Ghoul", position: new Vector3(0, 0, -20) },
+	{ kind: "Ghoul", position: new Vector3(10, 0, -24) },
+	{ kind: "Robot", position: new Vector3(-10, 0, -24) },
 ];
 
 export const Progression = {

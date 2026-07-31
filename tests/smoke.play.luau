@@ -56,6 +56,32 @@ for kind in config.EnemyKinds do
 end
 table.sort(kindIds)
 
+-- WorldService.start() builds the floor. Without it a joining character has
+-- nothing to stand on, falls past FallenPartsDestroyHeight, and respawn-loops —
+-- so this is the assertion that the game is playable at all.
+local ground = Workspace:WaitForChild("Ground", 10) :: BasePart?
+check("Workspace.Ground exists", ground ~= nil)
+if ground then
+	eq("ground is anchored", ground.Anchored, true)
+	eq("ground can be stood on", ground.CanCollide, true)
+	eq("ground is the configured size", ground.Size.X, config.World.groundSize)
+	check(
+		"ground's top face is at y = 0",
+		math.abs((ground.Position.Y + ground.Size.Y / 2) - 0) < 0.01,
+		("top y = %.3f"):format(ground.Position.Y + ground.Size.Y / 2)
+	)
+end
+
+local spawnPad = Workspace:FindFirstChild("SpawnPad")
+check("Workspace.SpawnPad exists", spawnPad ~= nil)
+if spawnPad then
+	check("spawn pad is a SpawnLocation", spawnPad:IsA("SpawnLocation"))
+	check(
+		"spawn pad sits on the ground",
+		math.abs(((spawnPad :: BasePart).Position.Y - (spawnPad :: BasePart).Size.Y / 2) - 0) < 0.01
+	)
+end
+
 -- EnemyService.start() creates Workspace.Enemies and spawns the enemies.
 local enemiesFolder = Workspace:WaitForChild("Enemies", 10)
 check("Workspace.Enemies folder exists", enemiesFolder ~= nil)
@@ -92,6 +118,16 @@ if enemiesFolder then
 
 		local body = enemy:FindFirstChild("Body")
 		check(("%s: has Body part"):format(kind), body ~= nil)
+
+		if body then
+			local part = body :: BasePart
+			local underside = part.Position.Y - part.Size.Y / 2
+			check(
+				("%s: feet rest on the ground, not floating"):format(kind),
+				math.abs(underside) < 0.01,
+				("underside y = %.3f, expected 0"):format(underside)
+			)
+		end
 
 		local gui = body and body:FindFirstChild("HealthGui")
 		local label = gui and gui:FindFirstChild("HealthLabel")
