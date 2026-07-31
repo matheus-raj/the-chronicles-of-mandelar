@@ -1,5 +1,27 @@
 # The Chronicles of Mandelar
 
+An MMORPG set on a solarpunk Earth — a planet that survived its apocalypse and
+came out the other side greener than it went in.
+
+The collapse already happened. What grew back wasn't a wasteland: humanity
+rebuilt *with* the planet instead of on top of it. Cities are grown as much as
+they're built, power comes off the sun and the wind and the tide, and technology
+serves the living world rather than paving it. Earth didn't just endure the end
+of the old world — it evolved past it.
+
+Now something wants to take it.
+
+**Ghouls** claw their way up out of what the old world left behind — the
+apocalypse's unfinished business, still hungry.
+
+**Robots** march in cold and patient, machinery that outlasted its makers and
+kept its orders long after there was anyone left to give them.
+
+They want the world. You and every other player online are what stands between
+them and it.
+
+## Built with
+
 A Roblox game written in **TypeScript** using [roblox-ts](https://roblox-ts.com/),
 which compiles TypeScript into Luau. Code is synced into Roblox Studio with
 [Rojo](https://rojo.space/).
