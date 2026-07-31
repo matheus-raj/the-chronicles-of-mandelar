@@ -9,14 +9,44 @@ export const Combat = {
 	attackCooldown: 0.5,
 } as const;
 
-export const Enemies = {
-	/** Hit points a training dummy spawns with. */
-	maxHealth: 60,
-	/** XP awarded to the killer when a dummy dies. */
-	xpReward: 25,
-	/** Seconds before a defeated dummy respawns. */
-	respawnDelay: 3,
-} as const;
+/** The threats to Mandelar. Add a member here to add an enemy type. */
+export type EnemyKindId = "Ghoul" | "Robot";
+
+export interface EnemyKind {
+	/** Shown on the model and in the world; also the Model's Name. */
+	readonly displayName: string;
+	/** Hit points one of these spawns with. */
+	readonly maxHealth: number;
+	/** XP awarded to the killer when one dies. */
+	readonly xpReward: number;
+	/** Seconds before a defeated one returns. */
+	readonly respawnDelay: number;
+}
+
+/**
+ * Per-type tuning. Ghouls are fragile and come back quickly; robots take longer
+ * to put down and longer to rebuild, and pay out accordingly.
+ *
+ * Appearance deliberately lives with the spawning code in EnemyService rather
+ * than here — this file is the gameplay tuning surface, not a presentation one.
+ */
+export const EnemyKinds: { readonly [K in EnemyKindId]: EnemyKind } = {
+	Ghoul: { displayName: "Ghoul", maxHealth: 60, xpReward: 25, respawnDelay: 3 },
+	Robot: { displayName: "Robot", maxHealth: 90, xpReward: 40, respawnDelay: 6 },
+};
+
+/**
+ * What spawns where, relative to the world origin.
+ *
+ * Lives in config rather than inside EnemyService so the spawn tests can derive
+ * what they expect instead of hardcoding counts and names. Adding an enemy to
+ * the world is an edit here and nowhere else.
+ */
+export const EnemySpawns: ReadonlyArray<{ readonly kind: EnemyKindId; readonly position: Vector3 }> = [
+	{ kind: "Ghoul", position: new Vector3(0, 5, -20) },
+	{ kind: "Ghoul", position: new Vector3(10, 5, -24) },
+	{ kind: "Robot", position: new Vector3(-10, 5, -24) },
+];
 
 export const Progression = {
 	baseMaxHealth: 100,

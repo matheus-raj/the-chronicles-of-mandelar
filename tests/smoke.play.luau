@@ -6,6 +6,10 @@
 -- plugin-level security in edit mode, where server Scripts never start. For a
 -- headless equivalent see tests/spawn.spec.luau.
 --
+-- What differs from spawn.spec.luau: this waits for main.server to build the
+-- world rather than driving EnemyService itself, so it is the only test that
+-- proves the boot path wires the services up at all.
+--
 -- Exits with an error if any assertion fails.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -24,9 +28,13 @@ local function check(name: string, condition: boolean, detail: string?)
 	end
 end
 
--- Read the expected health from config rather than hardcoding it, so retuning
--- Enemies.maxHealth can't make this test fail for an unrelated reason (or, worse,
--- pass while the label is stale). Mirrors tests/spawn.spec.luau.
+local function eq(name: string, actual: unknown, expected: unknown)
+	check(name, actual == expected, ("expected %s, got %s"):format(tostring(expected), tostring(actual)))
+end
+
+-- Expectations come from config rather than literals, so retuning an enemy type
+-- or adding one can't make this test fail for a reason unrelated to the boot
+-- path it actually covers. Mirrors tests/spawn.spec.luau.
 local okConfig, config = pcall(function()
 	return require(ReplicatedStorage.TS.config.game)
 end)
@@ -35,31 +43,61 @@ if not okConfig then
 	error("[TEST] Could not require the compiled config — run `pnpm build:place` first. " .. tostring(config))
 end
 
-local fullHealth = ("HP %d/%d"):format(config.Enemies.maxHealth, config.Enemies.maxHealth)
+local expectedCounts: { [string]: number } = {}
+local expectedTotal = 0
+for _, spawn in config.EnemySpawns do
+	expectedCounts[spawn.kind] = (expectedCounts[spawn.kind] or 0) + 1
+	expectedTotal += 1
+end
 
--- EnemyService.start() creates Workspace.Enemies and spawns the dummies.
+local kindIds: { string } = {}
+for kind in config.EnemyKinds do
+	table.insert(kindIds, kind)
+end
+table.sort(kindIds)
+
+-- EnemyService.start() creates Workspace.Enemies and spawns the enemies.
 local enemiesFolder = Workspace:WaitForChild("Enemies", 10)
 check("Workspace.Enemies folder exists", enemiesFolder ~= nil)
 
 if enemiesFolder then
-	local dummies = {}
+	local spawned = {}
+	local actualCounts: { [string]: number } = {}
+
 	for _, child in enemiesFolder:GetChildren() do
-		if child.Name == "TrainingDummy" then
-			table.insert(dummies, child)
+		local kind = child:GetAttribute("EnemyKind")
+		if typeof(kind) == "string" then
+			table.insert(spawned, child)
+			actualCounts[kind] = (actualCounts[kind] or 0) + 1
 		end
 	end
-	check("3 training dummies spawned", #dummies == 3, ("got %d"):format(#dummies))
 
-	for i, dummy in dummies do
-		check(("dummy %d has IsEnemy attribute"):format(i), dummy:GetAttribute("IsEnemy") == true)
+	eq("total enemies spawned", #spawned, expectedTotal)
 
-		local body = dummy:FindFirstChild("Body")
-		check(("dummy %d has Body part"):format(i), body ~= nil)
+	for _, kind in kindIds do
+		eq(("%s count"):format(kind), actualCounts[kind] or 0, expectedCounts[kind] or 0)
+	end
+
+	for _, enemy in spawned do
+		local kind = enemy:GetAttribute("EnemyKind") :: string
+		local stats = config.EnemyKinds[kind]
+
+		check(("%s: kind is a known type"):format(kind), stats ~= nil)
+		if not stats then
+			continue
+		end
+
+		eq(("%s: model named after its type"):format(kind), enemy.Name, stats.displayName)
+		check(("%s: has IsEnemy attribute"):format(kind), enemy:GetAttribute("IsEnemy") == true)
+
+		local body = enemy:FindFirstChild("Body")
+		check(("%s: has Body part"):format(kind), body ~= nil)
 
 		local gui = body and body:FindFirstChild("HealthGui")
 		local label = gui and gui:FindFirstChild("HealthLabel")
+		local fullHealth = ("HP %d/%d"):format(stats.maxHealth, stats.maxHealth)
 		check(
-			("dummy %d shows full health"):format(i),
+			("%s: spawns at full health (%s)"):format(kind, fullHealth),
 			label ~= nil and (label :: TextLabel).Text == fullHealth,
 			if label then ("%s (expected %s)"):format((label :: TextLabel).Text, fullHealth) else "no label"
 		)

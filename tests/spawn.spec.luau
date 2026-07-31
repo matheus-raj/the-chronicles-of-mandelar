@@ -6,8 +6,12 @@
 --
 -- run-in-roblox runs at plugin-level security in edit mode, where server
 -- Scripts never execute. So this drives EnemyService directly rather than
--- waiting for main.server to build the world — see tests/smoke.play.luau for
+-- waiting for main.server to build the world -- see tests/smoke.play.luau for
 -- the play-mode counterpart that covers the boot path itself.
+--
+-- Everything expected here is derived from config.EnemySpawns and
+-- config.EnemyKinds, so adding or retuning an enemy type needs no edit to this
+-- file.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
@@ -44,6 +48,21 @@ end
 local config = loaded.config
 local EnemyService = loaded.EnemyService
 
+-- What the spawn table says should exist, counted per kind.
+local expectedCounts: { [string]: number } = {}
+local expectedTotal = 0
+for _, spawn in config.EnemySpawns do
+	expectedCounts[spawn.kind] = (expectedCounts[spawn.kind] or 0) + 1
+	expectedTotal += 1
+end
+
+-- Sorted so the output order is stable run to run.
+local kindIds: { string } = {}
+for kind in config.EnemyKinds do
+	table.insert(kindIds, kind)
+end
+table.sort(kindIds)
+
 local stale = Workspace:FindFirstChild("Enemies")
 if stale then
 	stale:Destroy()
@@ -56,28 +75,45 @@ local folder = Workspace:FindFirstChild("Enemies")
 check("Workspace.Enemies folder exists", folder ~= nil)
 
 if folder then
-	local dummies = {}
+	local spawned = {}
+	local actualCounts: { [string]: number } = {}
+
 	for _, child in folder:GetChildren() do
-		if child.Name == "TrainingDummy" then
-			table.insert(dummies, child)
+		local kind = child:GetAttribute("EnemyKind")
+		if typeof(kind) == "string" then
+			table.insert(spawned, child)
+			actualCounts[kind] = (actualCounts[kind] or 0) + 1
 		end
 	end
-	eq("3 training dummies spawned", #dummies, 3)
 
-	local fullHealth = ("HP %d/%d"):format(config.Enemies.maxHealth, config.Enemies.maxHealth)
+	eq("total enemies spawned", #spawned, expectedTotal)
 
-	for i, dummy in dummies do
-		check(("dummy %d has IsEnemy attribute"):format(i), dummy:GetAttribute("IsEnemy") == true)
+	for _, kind in kindIds do
+		eq(("%s count"):format(kind), actualCounts[kind] or 0, expectedCounts[kind] or 0)
+	end
 
-		local body = dummy:FindFirstChild("Body")
-		check(("dummy %d has Body part"):format(i), body ~= nil)
+	for _, enemy in spawned do
+		local kind = enemy:GetAttribute("EnemyKind") :: string
+		local stats = config.EnemyKinds[kind]
+
+		check(("%s: kind is a known type"):format(kind), stats ~= nil)
+		if not stats then
+			continue
+		end
+
+		eq(("%s: model named after its type"):format(kind), enemy.Name, stats.displayName)
+		check(("%s: has IsEnemy attribute"):format(kind), enemy:GetAttribute("IsEnemy") == true)
+
+		local body = enemy:FindFirstChild("Body")
+		check(("%s: has Body part"):format(kind), body ~= nil)
 
 		local gui = body and body:FindFirstChild("HealthGui")
 		local label = gui and gui:FindFirstChild("HealthLabel")
+		local fullHealth = ("HP %d/%d"):format(stats.maxHealth, stats.maxHealth)
 		check(
-			("dummy %d shows full health"):format(i),
+			("%s: spawns at full health (%s)"):format(kind, fullHealth),
 			label ~= nil and (label :: TextLabel).Text == fullHealth,
-			if label then (label :: TextLabel).Text else "no label"
+			if label then ("%s (expected %s)"):format((label :: TextLabel).Text, fullHealth) else "no label"
 		)
 	end
 

@@ -64,10 +64,13 @@ click **Connect**. Your compiled code streams into the place live. Press
 The first milestone is a complete, code-driven RPG loop:
 
 1. You spawn with stats (level, XP, health) loaded from your saved profile.
-2. Three **training dummies** spawn automatically — no Studio building required.
-3. **Left-click a dummy** within range to attack it (the server validates range
+2. **Ghouls and robots** spawn automatically — no Studio building required.
+   Ghouls are fragile and return quickly; robots take longer to put down, longer
+   to rebuild, and pay out more XP.
+3. **Left-click an enemy** within range to attack it (the server validates range
    and enforces an attack cooldown; the client is never trusted).
-4. When a dummy's HP hits zero it awards XP and respawns after a few seconds.
+4. When an enemy's HP hits zero it awards XP for its type and respawns after
+   that type's delay.
 5. XP fills the bar; enough XP **levels you up**, raising max health and showing
    a "Level up!" toast.
 6. Your level/XP is **saved to a DataStore** and reloaded next time you join.
