@@ -5,7 +5,7 @@
 
 import { Players } from "@rbxts/services";
 import { Remotes } from "shared/remotes";
-import { Combat, Enemies } from "shared/config/game";
+import { Combat, EnemyKinds } from "shared/config/game";
 import { EnemyService } from "server/combat/EnemyService";
 import { PlayerDataService } from "server/data/PlayerDataService";
 
@@ -36,7 +36,7 @@ export class CombatService {
 
 		const died = this.enemies.applyDamage(handle, Combat.attackDamage);
 		if (died) {
-			this.data.addXp(player, Enemies.xpReward);
+			this.data.addXp(player, EnemyKinds[handle.kind].xpReward);
 		}
 	}
 

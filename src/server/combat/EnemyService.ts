@@ -1,19 +1,31 @@
 /**
- * Spawns and tracks code-built "training dummy" enemies.
- * Each dummy carries an `IsEnemy` attribute the client looks for.
+ * Spawns and tracks code-built enemies — ghouls and robots.
+ *
+ * Every enemy carries two attributes: `IsEnemy`, which is what the client's
+ * AttackController looks for (so it stays type-agnostic), and `EnemyKind`,
+ * which names the type for anything that needs to tell them apart.
  */
 
 import { Workspace } from "@rbxts/services";
-import { Enemies } from "shared/config/game";
+import { EnemyKindId, EnemyKinds, EnemySpawns } from "shared/config/game";
 import { create } from "shared/create";
 
 export interface EnemyHandle {
 	readonly model: Model;
+	readonly kind: EnemyKindId;
 	health: number;
 }
 
-/** Fixed spots (relative to the world origin) where dummies stand. */
-const SPAWN_POSITIONS: Vector3[] = [new Vector3(0, 5, -20), new Vector3(10, 5, -24), new Vector3(-10, 5, -24)];
+/**
+ * How each type looks. Kept here rather than in shared config: the numbers that
+ * decide a fight belong in config, a shade of grey doesn't.
+ */
+const APPEARANCE: { readonly [K in EnemyKindId]: { readonly color: Color3; readonly size: Vector3 } } = {
+	// Sickly green, and the smaller silhouette of the two.
+	Ghoul: { color: Color3.fromRGB(120, 150, 90), size: new Vector3(3, 5, 3) },
+	// Cold gunmetal, bulkier — reads as the heavier threat at a glance.
+	Robot: { color: Color3.fromRGB(150, 155, 170), size: new Vector3(3.5, 5.5, 3.5) },
+};
 
 export class EnemyService {
 	private readonly enemies = new Map<Model, EnemyHandle>();
@@ -22,8 +34,8 @@ export class EnemyService {
 	public start(): void {
 		this.folder = create("Folder", { Name: "Enemies", Parent: Workspace });
 
-		for (const position of SPAWN_POSITIONS) {
-			this.spawnAt(position);
+		for (const spawn of EnemySpawns) {
+			this.spawnAt(spawn.kind, spawn.position);
 		}
 	}
 
@@ -36,8 +48,8 @@ export class EnemyService {
 	}
 
 	/**
-	 * Apply damage to a dummy. Returns `true` if this hit defeated it, in which
-	 * case the caller should award XP; the dummy then respawns after a delay.
+	 * Apply damage to an enemy. Returns `true` if this hit defeated it, in which
+	 * case the caller should award XP; it then respawns after its type's delay.
 	 */
 	public applyDamage(handle: EnemyHandle, amount: number): boolean {
 		handle.health = math.max(0, handle.health - amount);
@@ -45,14 +57,21 @@ export class EnemyService {
 
 		if (handle.health > 0) return false;
 
-		// Capture the spawn position before destroying the model.
+		// Capture kind and position before destroying the model — the respawn
+		// closure outlives the handle. Note this respawns where it died rather
+		// than at its original post, which is identical today because nothing
+		// moves; revisit if enemies ever get movement.
+		const { kind } = handle;
 		const position = handle.model.GetPivot().Position;
 		this.despawn(handle);
-		task.delay(Enemies.respawnDelay, () => this.spawnAt(position));
+		task.delay(EnemyKinds[kind].respawnDelay, () => this.spawnAt(kind, position));
 		return true;
 	}
 
-	private spawnAt(position: Vector3): void {
+	private spawnAt(kind: EnemyKindId, position: Vector3): void {
+		const stats = EnemyKinds[kind];
+		const look = APPEARANCE[kind];
+
 		const label = create("TextLabel", {
 			Name: "HealthLabel",
 			Size: UDim2.fromScale(1, 1),
@@ -65,8 +84,8 @@ export class EnemyService {
 
 		const body = create("Part", {
 			Name: "Body",
-			Size: new Vector3(3, 5, 3),
-			Color: Color3.fromRGB(180, 60, 60),
+			Size: look.size,
+			Color: look.color,
 			Anchored: true,
 			Position: position,
 			Children: [
@@ -81,16 +100,17 @@ export class EnemyService {
 		});
 
 		const model = create("Model", {
-			Name: "TrainingDummy",
+			Name: stats.displayName,
 			Children: [body],
 		});
 		model.PrimaryPart = body;
 		model.SetAttribute("IsEnemy", true);
+		model.SetAttribute("EnemyKind", kind);
 		model.Parent = this.folder;
 
-		const handle: EnemyHandle = { model, health: Enemies.maxHealth };
+		const handle: EnemyHandle = { model, kind, health: stats.maxHealth };
 		this.enemies.set(model, handle);
-		this.setLabelText(label, handle.health);
+		this.setLabelText(label, handle);
 	}
 
 	private despawn(handle: EnemyHandle): void {
@@ -101,10 +121,10 @@ export class EnemyService {
 	private updateHealthLabel(handle: EnemyHandle): void {
 		const body = handle.model.PrimaryPart;
 		const label = body?.FindFirstChild("HealthGui")?.FindFirstChild("HealthLabel") as TextLabel | undefined;
-		if (label !== undefined) this.setLabelText(label, handle.health);
+		if (label !== undefined) this.setLabelText(label, handle);
 	}
 
-	private setLabelText(label: TextLabel, health: number): void {
-		label.Text = `HP ${health}/${Enemies.maxHealth}`;
+	private setLabelText(label: TextLabel, handle: EnemyHandle): void {
+		label.Text = `HP ${handle.health}/${EnemyKinds[handle.kind].maxHealth}`;
 	}
 }

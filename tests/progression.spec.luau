@@ -53,8 +53,31 @@ eq("maxHealthForLevel(5)", config.maxHealthForLevel(5), 180)
 
 -- Tuning constants the rest of the game depends on.
 eq("Combat.attackDamage", config.Combat.attackDamage, 20)
-eq("Enemies.maxHealth", config.Enemies.maxHealth, 60)
-eq("Enemies.xpReward", config.Enemies.xpReward, 25)
+eq("EnemyKinds.Ghoul.maxHealth", config.EnemyKinds.Ghoul.maxHealth, 60)
+eq("EnemyKinds.Ghoul.xpReward", config.EnemyKinds.Ghoul.xpReward, 25)
+eq("EnemyKinds.Robot.maxHealth", config.EnemyKinds.Robot.maxHealth, 90)
+eq("EnemyKinds.Robot.xpReward", config.EnemyKinds.Robot.xpReward, 40)
+
+-- Structural checks over the whole registry, so a newly added enemy type is
+-- covered by these without anyone remembering to extend this file.
+for kind, stats in config.EnemyKinds do
+	check(("%s: has a displayName"):format(kind), typeof(stats.displayName) == "string" and stats.displayName ~= "")
+	check(("%s: maxHealth is positive"):format(kind), typeof(stats.maxHealth) == "number" and stats.maxHealth > 0)
+	check(("%s: xpReward is positive"):format(kind), typeof(stats.xpReward) == "number" and stats.xpReward > 0)
+	check(
+		("%s: respawnDelay is non-negative"):format(kind),
+		typeof(stats.respawnDelay) == "number" and stats.respawnDelay >= 0
+	)
+end
+
+-- Every spawn point must name a type that actually exists, or EnemyService
+-- would index nil at runtime and take the server boot down with it.
+for index, spawn in config.EnemySpawns do
+	check(
+		("EnemySpawns[%d]: %s is a known kind"):format(index, tostring(spawn.kind)),
+		config.EnemyKinds[spawn.kind] ~= nil
+	)
+end
 
 -- Mirror the server's level-up loop (PlayerDataService.addXp) to guard the loop
 -- logic against config drift.
@@ -75,10 +98,22 @@ do
 end
 
 do
-	-- A single dummy kill (25 xp) should not level a fresh player.
-	local level, xp = simulateAward(1, 0, config.Enemies.xpReward)
-	eq("oneKill: level", level, 1)
-	eq("oneKill: xp", xp, 25)
+	-- A single ghoul kill (25 xp) should not level a fresh player.
+	local level, xp = simulateAward(1, 0, config.EnemyKinds.Ghoul.xpReward)
+	eq("oneGhoulKill: level", level, 1)
+	eq("oneGhoulKill: xp", xp, 25)
+end
+
+-- Generalised: no single kill of any type should level a fresh player, or the
+-- first thing a new player attacks hands them a level and the curve means
+-- nothing. Holds for a new enemy type automatically.
+for kind, stats in config.EnemyKinds do
+	local level = simulateAward(1, 0, stats.xpReward)
+	check(
+		("oneKill(%s) does not level a fresh player"):format(kind),
+		level == 1,
+		("%d xp vs %d needed"):format(stats.xpReward, config.xpToNext(1))
+	)
 end
 
 print(("[TEST] DONE — %d passed, %d failed"):format(passed, failed))
