@@ -82,12 +82,32 @@ macOS still needs the standalone server from the
 After editing `.mcp.json`, **restart Claude Code** — MCP servers are loaded at
 startup, so a new one won't appear mid-session.
 
+Studio's half of the bridge is **not** a plugin you install: nothing lands in
+`%LOCALAPPDATA%\Roblox\Plugins`, and the version folder ships only
+`StudioMCP.exe`. It's built into Studio behind a setting. Open **File → Studio
+Settings** and search for `MCP` (it has moved between Studio releases, so it may
+sit under Beta Features). Until that's on, the proxy runs but bridges nothing.
+
 The MCP is a *proxy*: it returns an empty tool list until Studio is running and
-connected, then surfaces Studio's own tools — `run_code`,
-`run_script_in_play_mode`, `start_stop_play`, `get_console_output`,
-`get_studio_mode`, `insert_model`. Confirm the live list with `/mcp` once Studio
-is up, rather than trusting this list; it comes from Studio and can change
-between Studio versions.
+connected. **The client captures that list at handshake time**, so the usual
+order — start the session, then open Studio — leaves you with a permanently
+empty tool list and no error to explain it. Either connect Studio *before*
+starting Claude Code, or run `/mcp` afterwards and reconnect `Roblox_Studio`,
+which re-runs the handshake against a proxy that now has tools.
+
+To check whether Studio really is attached, look for an established loopback
+connection to the proxy's listener rather than guessing:
+
+```powershell
+Get-NetTCPConnection -OwningProcess (Get-Process StudioMCP).Id |
+  Where-Object State -eq Established
+```
+
+Once connected, Studio exposes `execute_luau` (which takes a `datamodel_type` of
+`Edit`, `Client`, or `Server`), `start_stop_play`, `get_studio_state`,
+`get_console_output`, `list_roblox_studios`, and others. Confirm the live list
+with `/mcp` rather than trusting this one — it comes from Studio and changes
+between versions.
 
 ---
 
@@ -101,11 +121,17 @@ between Studio versions.
    Studio plugin for live updates).
 2. Enable the Studio MCP plugin (Plugins tab).
 3. In your teleported Claude Code session, the agent can now:
-   - `run_code` with the contents of `tests/progression.spec.luau` to check the
-     progression math, and
-   - `run_script_in_play_mode` with `tests/smoke.play.luau` to boot the server
-     and confirm the world spawns.
-   - Read `get_console_output` to see the `[TEST] PASS/FAIL … DONE` lines.
+   - `execute_luau` with `datamodel_type: "Edit"` and the contents of
+     `tests/progression.spec.luau` to check the progression math,
+   - `start_stop_play` to boot the server, then `execute_luau` with
+     `datamodel_type: "Server"` and `tests/smoke.play.luau` to confirm the world
+     spawns, and
+   - `get_console_output` to see the `[TEST] PASS/FAIL … DONE` lines — plus any
+     boot errors, which is where a failing `smoke.play.luau` explains itself.
+
+   `execute_luau` returns the value of the script's final expression, so a test
+   that ends in `error()` reports a tool failure. Having the script accumulate
+   its `[TEST]` lines and `return` them makes the result readable either way.
 
 ## Path B — headless (run-in-roblox)
 
