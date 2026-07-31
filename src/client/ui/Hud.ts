@@ -11,6 +11,7 @@ import { create, InstanceProps } from "shared/create";
 
 const ACCENT = Color3.fromRGB(90, 170, 255);
 const XP_FILL = Color3.fromRGB(120, 200, 120);
+const XP_AT_RISK = Color3.fromRGB(230, 180, 80);
 const HEALTH_FILL = Color3.fromRGB(220, 80, 80);
 const PANEL_BG = Color3.fromRGB(20, 22, 28);
 const WHITE = Color3.fromRGB(255, 255, 255);
@@ -24,6 +25,7 @@ interface Bar {
 export class Hud {
 	private levelLabel!: TextLabel;
 	private xpFill!: Frame;
+	private xpRiskFill!: Frame;
 	private xpText!: TextLabel;
 	private healthFill!: Frame;
 	private healthText!: TextLabel;
@@ -53,8 +55,20 @@ export class Hud {
 
 	private render(stats: PlayerStats): void {
 		this.levelLabel.Text = `Level ${stats.level}`;
-		this.xpText.Text = `${stats.xp} / ${stats.xpToNext} XP`;
-		this.xpFill.Size = UDim2.fromScale(math.clamp(stats.xp / stats.xpToNext, 0, 1), 1);
+
+		// Two-tone XP bar: banked XP (death-proof) in green, at-risk XP in
+		// amber stacked after it — the bar itself nags you to visit the Sunwell.
+		const bankedScale = math.clamp(stats.bankedXp / stats.xpToNext, 0, 1);
+		const totalScale = math.clamp(stats.xp / stats.xpToNext, 0, 1);
+		this.xpFill.Size = UDim2.fromScale(bankedScale, 1);
+		this.xpRiskFill.Position = UDim2.fromScale(bankedScale, 0);
+		this.xpRiskFill.Size = UDim2.fromScale(totalScale - bankedScale, 1);
+
+		const atRisk = stats.xp - stats.bankedXp;
+		this.xpText.Text =
+			atRisk > 0
+				? `${stats.xp} / ${stats.xpToNext} XP (${atRisk} at risk)`
+				: `${stats.xp} / ${stats.xpToNext} XP`;
 
 		this.renderHealth(stats.health, stats.maxHealth);
 	}
@@ -101,6 +115,14 @@ export class Hud {
 		const xp = this.bar("XpBar", new UDim2(0, 12, 0, 38), XP_FILL);
 		this.xpFill = xp.fill;
 		this.xpText = xp.text;
+		this.xpRiskFill = create("Frame", {
+			Name: "RiskFill",
+			Size: UDim2.fromScale(0, 1),
+			BackgroundColor3: XP_AT_RISK,
+			BorderSizePixel: 0,
+			Children: [this.corner(6)],
+			Parent: xp.frame,
+		});
 
 		const health = this.bar("HealthBar", new UDim2(0, 12, 0, 64), HEALTH_FILL);
 		this.healthFill = health.fill;
@@ -144,7 +166,7 @@ export class Hud {
 			Parent: playerGui,
 		});
 
-		this.render({ level: 1, xp: 0, xpToNext: 100, health: 100, maxHealth: 100 });
+		this.render({ level: 1, xp: 0, bankedXp: 0, xpToNext: 100, health: 100, maxHealth: 100 });
 		print(`[${GAME_NAME}] HUD ready.`);
 	}
 
@@ -157,6 +179,8 @@ export class Hud {
 			Children: [this.corner(6)],
 		});
 
+		// Above the fills, so a segment added to a bar later (the XP bar's
+		// at-risk overlay) can never paint over the numbers.
 		const text = create("TextLabel", {
 			Name: "Text",
 			Size: UDim2.fromScale(1, 1),
@@ -165,6 +189,7 @@ export class Hud {
 			TextStrokeTransparency: 0.5,
 			TextScaled: true,
 			Font: Enum.Font.GothamMedium,
+			ZIndex: 2,
 		});
 
 		const frame = create("Frame", {

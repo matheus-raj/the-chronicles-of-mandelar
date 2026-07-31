@@ -5,6 +5,7 @@
 
 import { GAME_NAME } from "shared/greeting";
 import { WorldService } from "server/world/WorldService";
+import { BankingService } from "server/world/BankingService";
 import { PlayerDataService } from "server/data/PlayerDataService";
 import { EnemyService } from "server/combat/EnemyService";
 import { CombatService } from "server/combat/CombatService";
@@ -18,6 +19,7 @@ const playerData = new PlayerDataService();
 const enemies = new EnemyService();
 const combat = new CombatService(enemies, playerData);
 const weapons = new WeaponService();
+const banking = new BankingService(playerData);
 
 // The world goes up first: a player can be added the instant the server starts,
 // and without ground their character falls out of the map and respawn-loops.
@@ -26,6 +28,7 @@ playerData.start();
 enemies.start();
 combat.start();
 weapons.start();
+banking.start();
 
 // Server-only bridge so play-mode tests can drive the live services
 // (execute_luau runs in a separate Lua environment — see testApi.ts).

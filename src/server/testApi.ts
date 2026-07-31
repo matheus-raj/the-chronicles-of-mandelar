@@ -44,9 +44,16 @@ export function createTestApi(playerData: PlayerDataService, enemies: EnemyServi
 		combat.attack(player, target);
 	};
 
+	// The same banking path the Sunwell's prompt calls, minus only the
+	// walk-up-and-hold. Returns how much XP was newly protected.
+	const bankXp = create("BindableFunction", { Name: "BankXp" });
+	bankXp.OnInvoke = (player: Player): number => {
+		return playerData.bankXp(player);
+	};
+
 	create("Folder", {
 		Name: "TestApi",
-		Children: [addXp, damageEnemy, getEnemyHealth, attack],
+		Children: [addXp, damageEnemy, getEnemyHealth, attack, bankXp],
 		Parent: ServerStorage,
 	});
 }

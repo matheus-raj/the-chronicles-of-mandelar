@@ -1,5 +1,6 @@
 -- Play-mode smoke test: verifies the server booted, built the world, and that
--- enemies actually behave — aggro, damage, evade, and the death penalty.
+-- enemies actually behave — aggro, damage, evade, XP banking at the Sunwell,
+-- and the death penalty.
 --
 -- Requires play mode, so it runs *only* via the Roblox Studio MCP bridge with
 -- the place open: `start_stop_play`, then `execute_luau` with
@@ -83,6 +84,34 @@ if spawnPad then
 		"spawn pad sits on the ground",
 		math.abs(((spawnPad :: BasePart).Position.Y - (spawnPad :: BasePart).Size.Y / 2) - 0) < 0.01
 	)
+end
+
+-- BankingService.start() builds the Sunwell — the beacon where at-risk XP
+-- becomes banked. Placement and prompt tuning both come from config.
+local sunwell = Workspace:WaitForChild("Sunwell", 10)
+check("Workspace.Sunwell exists", sunwell ~= nil)
+if sunwell then
+	local crystal = sunwell:FindFirstChild("Crystal") :: BasePart?
+	check("Sunwell has its crystal", crystal ~= nil)
+	local prompt = crystal and crystal:FindFirstChildOfClass("ProximityPrompt")
+	check("Sunwell crystal carries a ProximityPrompt", prompt ~= nil)
+	if prompt then
+		eq("Sunwell prompt hold time from config", prompt.HoldDuration, config.Banking.holdSeconds)
+		eq("Sunwell prompt range from config", prompt.MaxActivationDistance, config.Banking.promptRange)
+	end
+	if crystal then
+		check(
+			"Sunwell stands at its configured spot",
+			math.abs(crystal.Position.X - config.Banking.stationPosition.X) < 0.01
+				and math.abs(crystal.Position.Z - config.Banking.stationPosition.Z) < 0.01,
+			("crystal at (%.1f, %.1f), config says (%.1f, %.1f)"):format(
+				crystal.Position.X,
+				crystal.Position.Z,
+				config.Banking.stationPosition.X,
+				config.Banking.stationPosition.Z
+			)
+		)
+	end
 end
 
 -- ========================= Section 2: the enemies =========================
@@ -172,7 +201,7 @@ if enemiesFolder then
 end
 
 -- ==================== Section 3: behaviour, end to end ====================
--- Weapons → attack validation → aggro → damage → death penalty →
+-- Weapons → attack validation → XP banking → aggro → damage → death penalty →
 -- evade-and-heal. Drives the live services through the TestApi bindables in
 -- ServerStorage: execute_luau runs in a separate Lua environment from game
 -- scripts, so require() would yield a fresh empty module — Instances are the
@@ -190,6 +219,7 @@ else
 	local addXp = testApi:WaitForChild("AddXp") :: BindableFunction
 	local getEnemyHealth = testApi:WaitForChild("GetEnemyHealth") :: BindableFunction
 	local attack = testApi:WaitForChild("Attack") :: BindableFunction
+	local bankXp = testApi:WaitForChild("BankXp") :: BindableFunction
 
 	-- Every starter weapon arrives on spawn, as a Tool carrying its WeaponId;
 	-- the first one is already equipped (a Tool in the character, not the
@@ -250,9 +280,20 @@ else
 		local origin = ghoul:GetAttribute("Origin") :: Vector3
 		local blade = config.Weapons[config.StarterWeapons[1]]
 
-		-- Bank some XP so the death penalty has something to take.
+		-- The banking loop on the live server: earn XP (it lands at risk),
+		-- bank it, then earn a little more so death has something to take —
+		-- and something it must leave alone.
 		addXp:Invoke(player, 40)
 		eq("XP attribute mirrors the grant", player:GetAttribute("XP"), 40)
+		eq("fresh XP is at risk, not banked", player:GetAttribute("BankedXP"), 0)
+
+		eq("banking protects all current XP", bankXp:Invoke(player), 40)
+		eq("BankedXP attribute mirrors the bank", player:GetAttribute("BankedXP"), 40)
+		eq("banking again with nothing new is a no-op", bankXp:Invoke(player), 0)
+
+		addXp:Invoke(player, 15)
+		eq("new XP lands at risk on top of banked", player:GetAttribute("XP"), 55)
+		eq("banked XP untouched by new gains", player:GetAttribute("BankedXP"), 40)
 		local levelBefore = player:GetAttribute("Level")
 		check("live service owns the ghoul's handle", getEnemyHealth:Invoke(ghoul) ~= nil)
 
@@ -306,7 +347,8 @@ else
 			return c ~= nil and c ~= character and h ~= nil and h.Health > 0
 		end)
 		check("character respawns after death", respawned)
-		eq("death wipes unbanked XP", player:GetAttribute("XP"), 0)
+		eq("death takes only the at-risk XP", player:GetAttribute("XP"), 40)
+		eq("banked XP survives death", player:GetAttribute("BankedXP"), 40)
 		eq("death never takes a level", player:GetAttribute("Level"), levelBefore)
 
 		-- With its target dead the ghoul evades: full health, walks home.

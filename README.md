@@ -85,9 +85,13 @@ The first milestone is a complete, code-driven RPG loop:
    respawns after that type's delay.
 8. XP fills the bar; enough XP **levels you up**, raising max health and showing
    a "Level up!" toast.
-9. **Dying costs your unbanked XP** — progress toward the next level resets to
-   zero, but a level once earned is never lost.
-10. Your level/XP is **saved to a DataStore** and reloaded next time you join.
+9. XP from kills is **at risk** — the amber part of the XP bar — until you bank
+   it at the **Sunwell**, the glowing beacon beside the spawn pad (hold the
+   prompt). Banked XP turns green and is death-proof.
+10. **Dying costs your at-risk XP** — everything you didn't bank is gone, but
+    banked XP and levels once earned are never lost. Push deeper for more, or
+    walk back and lock it in.
+11. Your level/XP is **saved to a DataStore** and reloaded next time you join.
 
 > **DataStore note:** persistence only works in a published place, or in Studio
 > with **Game Settings → Security → _Enable Studio Access to API Services_**
