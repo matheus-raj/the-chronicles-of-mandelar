@@ -38,18 +38,57 @@ export interface EnemyKind {
 	readonly xpReward: number;
 	/** Seconds before a defeated one returns. */
 	readonly respawnDelay: number;
+	/** Studs per second while chasing (wandering ambles at half this). */
+	readonly moveSpeed: number;
+	/** How far from its post an idle enemy will amble. */
+	readonly wanderRadius: number;
+	/** A player closer than this (XZ studs) gets charged. Everything is hostile. */
+	readonly aggroRange: number;
+	/** Close enough (XZ studs) to swing instead of chase. */
+	readonly attackRange: number;
+	/** Damage one swing deals to a player. */
+	readonly attackDamage: number;
+	/** Seconds between swings. */
+	readonly attackInterval: number;
+	/** Chasing further than this from its post breaks the leash: heal, go home. */
+	readonly leashRange: number;
 }
 
 /**
- * Per-type tuning. Ghouls are fragile and come back quickly; robots take longer
- * to put down and longer to rebuild, and pay out accordingly.
+ * Per-type tuning. Ghouls are fragile, fast, and land quick scratches; robots
+ * take longer to put down, close in slowly, and hit like a piston. Both charge
+ * on sight. Default player walk speed is 16, so both kinds can be outrun.
  *
  * Appearance deliberately lives with the spawning code in EnemyService rather
  * than here — this file is the gameplay tuning surface, not a presentation one.
  */
 export const EnemyKinds: { readonly [K in EnemyKindId]: EnemyKind } = {
-	Ghoul: { displayName: "Ghoul", maxHealth: 60, xpReward: 25, respawnDelay: 3 },
-	Robot: { displayName: "Robot", maxHealth: 90, xpReward: 40, respawnDelay: 6 },
+	Ghoul: {
+		displayName: "Ghoul",
+		maxHealth: 60,
+		xpReward: 25,
+		respawnDelay: 3,
+		moveSpeed: 12,
+		wanderRadius: 8,
+		aggroRange: 24,
+		attackRange: 6,
+		attackDamage: 8,
+		attackInterval: 1.2,
+		leashRange: 48,
+	},
+	Robot: {
+		displayName: "Robot",
+		maxHealth: 90,
+		xpReward: 40,
+		respawnDelay: 6,
+		moveSpeed: 6,
+		wanderRadius: 4,
+		aggroRange: 16,
+		attackRange: 7,
+		attackDamage: 20,
+		attackInterval: 2.5,
+		leashRange: 40,
+	},
 };
 
 /**
@@ -62,11 +101,16 @@ export const EnemyKinds: { readonly [K in EnemyKindId]: EnemyKind } = {
  * Lives in config rather than inside EnemyService so the spawn tests can derive
  * what they expect instead of hardcoding counts and names. Adding an enemy to
  * the world is an edit here and nowhere else.
+ *
+ * Placement rule (enforced by tests/progression.spec.luau): every post must be
+ * far enough from the spawn pad that a freshly spawned player can't be aggroed
+ * while standing on it — further than aggroRange + wanderRadius + half the pad,
+ * since everything charges on sight and idle enemies drift around their post.
  */
 export const EnemySpawns: ReadonlyArray<{ readonly kind: EnemyKindId; readonly position: Vector3 }> = [
-	{ kind: "Ghoul", position: new Vector3(0, 0, -20) },
-	{ kind: "Ghoul", position: new Vector3(10, 0, -24) },
-	{ kind: "Robot", position: new Vector3(-10, 0, -24) },
+	{ kind: "Ghoul", position: new Vector3(0, 0, -48) },
+	{ kind: "Ghoul", position: new Vector3(14, 0, -52) },
+	{ kind: "Robot", position: new Vector3(-14, 0, -44) },
 ];
 
 export const Progression = {

@@ -1,14 +1,23 @@
 /**
- * Spawns and tracks code-built enemies — ghouls and robots.
+ * Spawns, tracks, and drives code-built enemies — ghouls and robots.
  *
- * Every enemy carries two attributes: `IsEnemy`, which is what the client's
- * AttackController looks for (so it stays type-agnostic), and `EnemyKind`,
- * which names the type for anything that needs to tell them apart.
+ * Every enemy carries three attributes: `IsEnemy`, which is what the client's
+ * AttackController looks for (so it stays type-agnostic); `EnemyKind`, which
+ * names the type; and `Origin`, its post, which the spawn tests use to assert
+ * a wandering enemy hasn't drifted beyond its radius.
+ *
+ * Behaviour is decided by EnemyBrain (a pure state machine — see its header
+ * for why) and applied here each Heartbeat. Enemies stay anchored and move by
+ * PivotTo: unanchored parts near a player get physics-simulated on that
+ * player's client (network ownership), which is both jittery and an exploit
+ * surface. Anchored + CFrame keeps the server authoritative, same stance as
+ * CombatService takes for player attacks.
  */
 
-import { Workspace } from "@rbxts/services";
+import { Players, RunService, Workspace } from "@rbxts/services";
 import { EnemyKindId, EnemyKinds, EnemySpawns } from "shared/config/game";
 import { create } from "shared/create";
+import { BrainState, decide, flatDistance, initialState } from "server/combat/EnemyBrain";
 
 export interface EnemyHandle {
 	readonly model: Model;
@@ -16,7 +25,11 @@ export interface EnemyHandle {
 	/** Ground position this enemy belongs to, and returns to when it respawns. */
 	readonly origin: Vector3;
 	health: number;
+	brain: BrainState;
 }
+
+/** Cap a single step's dt so a lag spike can't teleport an enemy. */
+const MAX_STEP_SECONDS = 0.1;
 
 /**
  * How each type looks. Kept here rather than in shared config: the numbers that
@@ -39,6 +52,99 @@ export class EnemyService {
 		for (const spawn of EnemySpawns) {
 			this.spawnAt(spawn.kind, spawn.position);
 		}
+
+		RunService.Heartbeat.Connect((dt) => this.step(math.min(dt, MAX_STEP_SECONDS)));
+	}
+
+	/** One decision-and-apply pass over every living enemy. */
+	private step(dt: number): void {
+		for (const [model, handle] of this.enemies) {
+			// The model can vanish out from under us (test teardown, an
+			// explicit Destroy in Studio). Drop the handle instead of erroring
+			// every frame forever.
+			if (model.Parent === undefined) {
+				this.enemies.delete(model);
+				continue;
+			}
+
+			const body = model.PrimaryPart;
+			if (body === undefined) continue;
+
+			// The brain thinks in ground (feet) positions.
+			const feet = body.Position.sub(new Vector3(0, body.Size.Y / 2, 0));
+			const target = this.nearestLivingPlayer(feet);
+			const decision = decide(handle.brain, {
+				dt,
+				position: feet,
+				origin: handle.origin,
+				nearestPlayer: target?.groundPosition,
+				kind: EnemyKinds[handle.kind],
+				rng: () => math.random(),
+			});
+			handle.brain = decision.state;
+
+			if (decision.healToFull) {
+				handle.health = EnemyKinds[handle.kind].maxHealth;
+				this.updateHealthLabel(handle);
+			}
+
+			if (decision.moveToward !== undefined) {
+				this.stepToward(handle, body, feet, decision.moveToward, decision.speedScale, dt);
+			}
+
+			if (decision.swing && target !== undefined) {
+				target.humanoid.TakeDamage(EnemyKinds[handle.kind].attackDamage);
+			}
+		}
+	}
+
+	/**
+	 * The living player nearest to *this* enemy, as the brain wants to see one:
+	 * a ground position plus the humanoid to swing at. Per-enemy on purpose —
+	 * with several players online, each enemy fights its own closest one. Dead
+	 * and still-loading characters don't count; an enemy never chases a corpse.
+	 */
+	private nearestLivingPlayer(feet: Vector3): { groundPosition: Vector3; humanoid: Humanoid } | undefined {
+		let best: { groundPosition: Vector3; humanoid: Humanoid } | undefined;
+		let bestDistance = math.huge;
+
+		for (const player of Players.GetPlayers()) {
+			const character = player.Character;
+			const root = character?.FindFirstChild("HumanoidRootPart") as BasePart | undefined;
+			const humanoid = character?.FindFirstChildOfClass("Humanoid");
+			if (root === undefined || humanoid === undefined || humanoid.Health <= 0) continue;
+
+			const groundPosition = new Vector3(root.Position.X, 0, root.Position.Z);
+			const distance = flatDistance(feet, groundPosition);
+			if (distance < bestDistance) {
+				bestDistance = distance;
+				best = { groundPosition, humanoid };
+			}
+		}
+
+		return best;
+	}
+
+	/** Advance the body toward a ground goal, clamped so it never overshoots. */
+	private stepToward(
+		handle: EnemyHandle,
+		body: BasePart,
+		feet: Vector3,
+		goal: Vector3,
+		speedScale: number,
+		dt: number,
+	): void {
+		const flatGoal = new Vector3(goal.X, feet.Y, goal.Z);
+		const offset = flatGoal.sub(feet);
+		if (offset.Magnitude < 0.001) return;
+
+		const stepLength = math.min(EnemyKinds[handle.kind].moveSpeed * speedScale * dt, offset.Magnitude);
+		const nextFeet = feet.add(offset.Unit.mul(stepLength));
+		const centre = nextFeet.add(new Vector3(0, body.Size.Y / 2, 0));
+
+		// Face travel, stay upright: the look target shares the centre's Y.
+		const lookAt = new Vector3(flatGoal.X, centre.Y, flatGoal.Z);
+		handle.model.PivotTo(CFrame.lookAt(centre, lookAt));
 	}
 
 	public getHandle(model: Model): EnemyHandle | undefined {
@@ -112,9 +218,10 @@ export class EnemyService {
 		model.PrimaryPart = body;
 		model.SetAttribute("IsEnemy", true);
 		model.SetAttribute("EnemyKind", kind);
+		model.SetAttribute("Origin", origin);
 		model.Parent = this.folder;
 
-		const handle: EnemyHandle = { model, kind, origin, health: stats.maxHealth };
+		const handle: EnemyHandle = { model, kind, origin, health: stats.maxHealth, brain: initialState() };
 		this.enemies.set(model, handle);
 		this.setLabelText(label, handle);
 	}

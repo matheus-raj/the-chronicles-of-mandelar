@@ -83,6 +83,47 @@ for kind, stats in config.EnemyKinds do
 		("%s: respawnDelay is non-negative"):format(kind),
 		typeof(stats.respawnDelay) == "number" and stats.respawnDelay >= 0
 	)
+
+	-- Behaviour tuning. The orderings aren't taste, they're what keeps the
+	-- state machine coherent: an attackRange >= aggroRange enemy would swing
+	-- before it ever chased, and a leashRange < aggroRange one would evade the
+	-- moment it aggroed.
+	check(("%s: moveSpeed is positive"):format(kind), stats.moveSpeed > 0)
+	check(("%s: attackInterval is positive"):format(kind), stats.attackInterval > 0)
+	check(("%s: attackDamage is positive"):format(kind), stats.attackDamage > 0)
+	check(("%s: wanderRadius is non-negative"):format(kind), stats.wanderRadius >= 0)
+	check(
+		("%s: attackRange < aggroRange <= leashRange"):format(kind),
+		stats.attackRange < stats.aggroRange and stats.aggroRange <= stats.leashRange,
+		("%d / %d / %d"):format(stats.attackRange, stats.aggroRange, stats.leashRange)
+	)
+	check(
+		("%s: wandering can't wander into a fight it can't leave"):format(kind),
+		stats.wanderRadius < stats.aggroRange
+	)
+	check(
+		("%s: escapable — slower than default player walk speed (16)"):format(kind),
+		stats.moveSpeed < 16,
+		("moveSpeed %d"):format(stats.moveSpeed)
+	)
+end
+
+-- The spawn pad must be safe to stand on: everything charges on sight and
+-- idle enemies drift up to wanderRadius from their post, so every post must
+-- sit further from the pad than that combined reach. Without this, a fresh
+-- (or AFK) player gets chomped the moment they load in.
+do
+	local padReach = config.World.spawnPadSize / 2
+	for index, spawn in config.EnemySpawns do
+		local stats = config.EnemyKinds[spawn.kind]
+		local distance = math.sqrt(spawn.position.X ^ 2 + spawn.position.Z ^ 2)
+		local required = stats.aggroRange + stats.wanderRadius + padReach
+		check(
+			("EnemySpawns[%d]: %s post can't aggro the spawn pad"):format(index, spawn.kind),
+			distance > required,
+			("%.1f studs from pad, needs > %.1f"):format(distance, required)
+		)
+	end
 end
 
 -- Every spawn point must name a type that actually exists, or EnemyService

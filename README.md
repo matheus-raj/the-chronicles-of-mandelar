@@ -63,17 +63,26 @@ click **Connect**. Your compiled code streams into the place live. Press
 
 The first milestone is a complete, code-driven RPG loop:
 
-1. You spawn with stats (level, XP, health) loaded from your saved profile.
-2. **Ghouls and robots** spawn automatically — no Studio building required.
-   Ghouls are fragile and return quickly; robots take longer to put down, longer
-   to rebuild, and pay out more XP.
-3. **Left-click an enemy** within range to attack it (the server validates range
+1. You spawn with stats (level, XP, health) loaded from your saved profile, on a
+   spawn pad placed outside every enemy's reach (a tested invariant).
+2. **Ghouls and robots** spawn automatically — no Studio building required —
+   and idle enemies **wander** around their posts. Ghouls are fragile, fast,
+   and land quick scratches; robots take longer to put down, close in slowly,
+   and hit like a piston.
+3. **Everything is hostile.** Get inside an enemy's aggro range and it charges;
+   in melee range it swings on its own cooldown. Both kinds are slower than
+   you, so you can always run.
+4. Enemies **leash**: drag one too far from its post and it gives up, heals to
+   full, and walks home — no farming a fight it can't win from its doorstep.
+5. **Left-click an enemy** within range to attack it (the server validates range
    and enforces an attack cooldown; the client is never trusted).
-4. When an enemy's HP hits zero it awards XP for its type and respawns after
+6. When an enemy's HP hits zero it awards XP for its type and respawns after
    that type's delay.
-5. XP fills the bar; enough XP **levels you up**, raising max health and showing
+7. XP fills the bar; enough XP **levels you up**, raising max health and showing
    a "Level up!" toast.
-6. Your level/XP is **saved to a DataStore** and reloaded next time you join.
+8. **Dying costs your unbanked XP** — progress toward the next level resets to
+   zero, but a level once earned is never lost.
+9. Your level/XP is **saved to a DataStore** and reloaded next time you join.
 
 > **DataStore note:** persistence only works in a published place, or in Studio
 > with **Game Settings → Security → _Enable Studio Access to API Services_**
@@ -108,6 +117,14 @@ src/
 | `pnpm lint` | Lint with ESLint + roblox-ts rules |
 | `pnpm prettier` | Check formatting |
 | `pnpm prettier:fix` | Auto-format the source |
+| `pnpm build:place` | Compile and build `game.rbxlx` |
+| `pnpm test:logic` | Headless: progression math and config invariants |
+| `pnpm test:ai` | Headless: every enemy-brain state transition |
+| `pnpm test:spawn` | Headless: enemies spawn correctly on the ground |
+
+The headless tests drive Roblox Studio via `run-in-roblox` — **close Studio
+before running them** (and see [docs/studio-testing.md](docs/studio-testing.md)
+for the play-mode test they can't cover).
 
 ## Adding libraries
 

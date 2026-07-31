@@ -101,10 +101,26 @@ export class PlayerDataService {
 			const humanoid = character.WaitForChild("Humanoid") as Humanoid;
 			this.applyMaxHealth(player, data.level, humanoid);
 			this.push(player, data);
+			humanoid.Died.Connect(() => this.onDied(player));
 		};
 
 		if (player.Character !== undefined) applyToCharacter(player.Character);
 		player.CharacterAdded.Connect(applyToCharacter);
+	}
+
+	/**
+	 * Death penalty: unbanked XP is lost. The level itself is never lost —
+	 * only progress toward the next one resets, so dying is a real cost
+	 * without ever undoing something already earned.
+	 */
+	private onDied(player: Player): void {
+		const data = this.cache.get(player);
+		if (data === undefined) return;
+
+		const lost = data.xp;
+		data.xp = 0;
+		this.push(player, data);
+		this.notify.SendToPlayer(player, lost > 0 ? `You have fallen — ${lost} unbanked XP lost.` : "You have fallen.");
 	}
 
 	private onPlayerRemoving(player: Player): void {
@@ -154,6 +170,10 @@ export class PlayerDataService {
 
 	private push(player: Player, data: SavedPlayerData): void {
 		this.syncStats.SendToPlayer(player, this.toStats(player, data));
+		// Mirrored as attributes so server-side observers — play-mode tests,
+		// future leaderboards — can read progression without a service handle.
+		player.SetAttribute("Level", data.level);
+		player.SetAttribute("XP", data.xp);
 	}
 
 	private toStats(player: Player, data: SavedPlayerData): PlayerStats {

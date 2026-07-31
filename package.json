@@ -13,6 +13,7 @@
     "prettier:fix": "prettier --write \"src/**/*.{ts,tsx}\"",
     "build:place": "rbxtsc && rojo build -o game.rbxlx",
     "test:logic": "run-in-roblox --place game.rbxlx --script tests/progression.spec.luau",
+    "test:ai": "run-in-roblox --place game.rbxlx --script tests/ai.spec.luau",
     "test:spawn": "run-in-roblox --place game.rbxlx --script tests/spawn.spec.luau"
   },
   "keywords": [

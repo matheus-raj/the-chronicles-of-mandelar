@@ -33,6 +33,19 @@ export class Hud {
 		this.build();
 		Remotes.Client.Get("SyncStats").Connect((stats) => this.render(stats));
 		Remotes.Client.Get("Notify").Connect((message) => this.showToast(message));
+
+		// SyncStats only arrives on progression events (XP, level-up, spawn).
+		// Damage lands on the Humanoid, which replicates natively — so the
+		// health bar binds to it directly, or enemy hits would be invisible
+		// until the next XP gain.
+		const player = Players.LocalPlayer;
+		const bindHealth = (character: Model) => {
+			const humanoid = character.WaitForChild("Humanoid") as Humanoid;
+			this.renderHealth(humanoid.Health, humanoid.MaxHealth);
+			humanoid.HealthChanged.Connect(() => this.renderHealth(humanoid.Health, humanoid.MaxHealth));
+		};
+		if (player.Character !== undefined) bindHealth(player.Character);
+		player.CharacterAdded.Connect(bindHealth);
 	}
 
 	private render(stats: PlayerStats): void {
@@ -40,8 +53,12 @@ export class Hud {
 		this.xpText.Text = `${stats.xp} / ${stats.xpToNext} XP`;
 		this.xpFill.Size = UDim2.fromScale(math.clamp(stats.xp / stats.xpToNext, 0, 1), 1);
 
-		this.healthText.Text = `${math.floor(stats.health)} / ${stats.maxHealth} HP`;
-		this.healthFill.Size = UDim2.fromScale(math.clamp(stats.health / stats.maxHealth, 0, 1), 1);
+		this.renderHealth(stats.health, stats.maxHealth);
+	}
+
+	private renderHealth(health: number, maxHealth: number): void {
+		this.healthText.Text = `${math.floor(health)} / ${math.floor(maxHealth)} HP`;
+		this.healthFill.Size = UDim2.fromScale(math.clamp(health / math.max(maxHealth, 1), 0, 1), 1);
 	}
 
 	private showToast(message: string): void {

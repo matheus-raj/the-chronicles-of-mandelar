@@ -63,12 +63,13 @@ for kind in config.EnemyKinds do
 end
 table.sort(kindIds)
 
--- Ground height each spawn point expects, keyed by its x/z. Spawn positions are
--- where an enemy's feet go, so a correctly placed body's underside sits here
--- regardless of how tall its type is.
-local expectedGroundY: { [string]: number } = {}
+-- The set of legitimate posts, keyed by x/z. Enemies wander while idle, so
+-- their *live* position can't be asserted exactly — instead each model carries
+-- an Origin attribute naming its post, which must be one of these, and the
+-- body must be within wanderRadius of it.
+local knownPosts: { [string]: boolean } = {}
 for _, spawn in config.EnemySpawns do
-	expectedGroundY[("%d,%d"):format(spawn.position.X, spawn.position.Z)] = spawn.position.Y
+	knownPosts[("%d,%d"):format(spawn.position.X, spawn.position.Z)] = true
 end
 
 local stale = Workspace:FindFirstChild("Enemies")
@@ -118,20 +119,34 @@ if folder then
 		if body then
 			local part = body :: BasePart
 			local underside = part.Position.Y - part.Size.Y / 2
-			local key = ("%d,%d"):format(part.Position.X, part.Position.Z)
-			local groundY = expectedGroundY[key]
-			check(
-				("%s: stands at a known spawn point"):format(kind),
-				groundY ~= nil,
-				("no spawn point at x/z %s"):format(key)
-			)
-			if groundY then
+			local origin = enemy:GetAttribute("Origin")
+
+			check(("%s: carries an Origin attribute"):format(kind), typeof(origin) == "Vector3")
+			if typeof(origin) == "Vector3" then
+				local key = ("%d,%d"):format(origin.X, origin.Z)
 				check(
-					("%s: feet rest on the ground, not floating"):format(kind),
-					math.abs(underside - groundY) < 0.01,
-					("underside y = %.3f, expected %.3f"):format(underside, groundY)
+					("%s: its post is a configured spawn point"):format(kind),
+					knownPosts[key] == true,
+					("no spawn point at x/z %s"):format(key)
+				)
+
+				-- Wandering may have moved it, but never beyond its radius.
+				local dx = part.Position.X - origin.X
+				local dz = part.Position.Z - origin.Z
+				local drift = math.sqrt(dx * dx + dz * dz)
+				check(
+					("%s: within wanderRadius of its post"):format(kind),
+					drift <= stats.wanderRadius + 0.5,
+					("%.2f studs from post, radius %d"):format(drift, stats.wanderRadius)
 				)
 			end
+
+			-- Wherever it has ambled to, its feet stay exactly on the ground.
+			check(
+				("%s: feet rest on the ground, not floating"):format(kind),
+				math.abs(underside) < 0.01,
+				("underside y = %.3f, expected 0"):format(underside)
+			)
 		end
 
 		local gui = body and body:FindFirstChild("HealthGui")
