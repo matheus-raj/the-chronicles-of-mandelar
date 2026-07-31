@@ -137,8 +137,9 @@ between versions.
 
 ```powershell
 pnpm build:place    # compile + build game.rbxlx
-pnpm test:logic     # progression math assertions
-pnpm test:spawn     # EnemyService spawns 3 dummies with full-health labels
+pnpm test:logic     # progression math + config invariants
+pnpm test:ai        # every enemy-brain state transition, deterministically
+pnpm test:spawn     # enemies spawn on the ground, near their posts
 ```
 
 Each command opens Studio, runs the script, and closes. Paste the `[TEST]`
@@ -151,7 +152,11 @@ Two things will make these hang or fail, and neither error message says so:
   `Timeout reached while waiting for Roblox Studio to come online`. Sign in once,
   manually.
 - **Close Studio first.** run-in-roblox launches its own instance; an already-open
-  one conflicts with it.
+  one conflicts with it. Worse than a hang: a lingering Studio holding an older
+  copy of the place can get killed mid-run and **save its stale DataModel over
+  your freshly built `game.rbxlx`** — tests then fail against code you deleted,
+  with no error pointing at the cause. If results make no sense, check the
+  place file's timestamp and rebuild.
 
 `run-in-roblox` runs scripts at **plugin-level security, in edit mode** — server
 `Script`s never execute. Anything that needs a booted server (like
@@ -164,13 +169,23 @@ themselves, the way `spawn.spec.luau` does.
 
 | Script | Checks | Runs via |
 | --- | --- | --- |
-| `tests/progression.spec.luau` | `xpToNext` / `maxHealthForLevel` curves, core tuning constants, and the level-up loop logic | Path A or B |
-| `tests/spawn.spec.luau` | `EnemyService.start()` spawns 3 training dummies with the `IsEnemy` attribute and a full-health label | Path A or B |
-| `tests/smoke.play.luau` | The server actually boots: `main.server` wires the services and builds the world unprompted | Path A only |
+| `tests/progression.spec.luau` | `xpToNext` / `maxHealthForLevel` curves, tuning constants, and the config invariants (range orderings, spawn-pad safety, spawn points on the ground slab) | Path A or B |
+| `tests/ai.spec.luau` | Every `EnemyBrain` state transition — wander, aggro, chase, attack cooldowns, leash, evade — deterministically, with injected RNG and no players | Path A or B |
+| `tests/spawn.spec.luau` | `EnemyService.start()` spawns every configured enemy on the ground, within wander range of its post | Path A or B |
+| `tests/smoke.play.luau` | The server boots and the game *plays*: world built, enemies behave (aggro → chase → hit), death costs unbanked XP, evade heals and goes home | Path A only |
 
 `spawn.spec.luau` and `smoke.play.luau` overlap on purpose. The first drives
 `EnemyService` directly so it can run headless; only the second proves the boot
 path wires it up at all, which is why it's worth keeping despite needing Studio.
 
-These cover logic and boot health. The *feel* of the game — combat timing,
-HUD readability, whether leveling is satisfying — still needs a human playtest.
+The behaviour half of `smoke.play.luau` **moves and kills the test player's
+character** (teleports it into a ghoul's aggro range, later sets its health to
+0) to exercise combat and the death penalty for real. It drives the live
+services through the `TestApi` bindables in ServerStorage — `execute_luau`
+runs in a separate Lua environment from game scripts, so requiring a module
+from a test yields a fresh empty copy; Instances are the only bridge (see
+`src/server/testApi.ts`).
+
+These cover logic, boot health, and behaviour. The *feel* of the game — combat
+timing, HUD readability, whether leveling is satisfying — still needs a human
+playtest.

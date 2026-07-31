@@ -8,6 +8,7 @@ import { WorldService } from "server/world/WorldService";
 import { PlayerDataService } from "server/data/PlayerDataService";
 import { EnemyService } from "server/combat/EnemyService";
 import { CombatService } from "server/combat/CombatService";
+import { createTestApi } from "server/testApi";
 
 print(`[${GAME_NAME}] server starting...`);
 
@@ -22,5 +23,9 @@ world.start();
 playerData.start();
 enemies.start();
 combat.start();
+
+// Server-only bridge so play-mode tests can drive the live services
+// (execute_luau runs in a separate Lua environment — see testApi.ts).
+createTestApi(playerData, enemies);
 
 print(`[${GAME_NAME}] server ready.`);
