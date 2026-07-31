@@ -172,10 +172,11 @@ if enemiesFolder then
 end
 
 -- ==================== Section 3: behaviour, end to end ====================
--- Aggro → chase → damage → death penalty → evade-and-heal. Drives the live
--- services through the TestApi bindables in ServerStorage: execute_luau runs
--- in a separate Lua environment from game scripts, so require() would yield a
--- fresh empty module — Instances are the only bridge (see src/server/testApi.ts).
+-- Weapons → attack validation → aggro → damage → death penalty →
+-- evade-and-heal. Drives the live services through the TestApi bindables in
+-- ServerStorage: execute_luau runs in a separate Lua environment from game
+-- scripts, so require() would yield a fresh empty module — Instances are the
+-- only bridge (see src/server/testApi.ts).
 
 local ServerStorage = game:GetService("ServerStorage")
 local testApi = ServerStorage:WaitForChild("TestApi", 10)
@@ -187,8 +188,42 @@ elseif player == nil or enemiesFolder == nil then
 	check("a test player is present", false, "behaviour section needs a play-mode player")
 else
 	local addXp = testApi:WaitForChild("AddXp") :: BindableFunction
-	local damageEnemy = testApi:WaitForChild("DamageEnemy") :: BindableFunction
 	local getEnemyHealth = testApi:WaitForChild("GetEnemyHealth") :: BindableFunction
+	local attack = testApi:WaitForChild("Attack") :: BindableFunction
+
+	-- Every starter weapon arrives on spawn, as a Tool carrying its WeaponId;
+	-- the first one is already equipped (a Tool in the character, not the
+	-- Backpack). Derived from config, so a new starter needs no test edit.
+	do
+		local backpack = player:WaitForChild("Backpack")
+		local character = player.Character
+		local found: { [string]: boolean } = {}
+		local equippedCount = 0
+
+		local function scan(container: Instance?)
+			if container == nil then
+				return
+			end
+			for _, child in container:GetChildren() do
+				if child:IsA("Tool") then
+					local id = child:GetAttribute("WeaponId")
+					if typeof(id) == "string" then
+						found[id] = true
+						if container == character then
+							equippedCount += 1
+						end
+					end
+				end
+			end
+		end
+		scan(backpack)
+		scan(character)
+
+		for _, id in config.StarterWeapons do
+			check(("starter weapon %s was granted"):format(id), found[id] == true)
+		end
+		eq("exactly one weapon starts equipped", equippedCount, 1)
+	end
 
 	-- The ghoul we'll fight: the one whose post is nearest the pad.
 	local ghoul: Model?
@@ -213,22 +248,45 @@ else
 
 	if ghoul and character and humanoid and humanoid.Health > 0 then
 		local origin = ghoul:GetAttribute("Origin") :: Vector3
+		local blade = config.Weapons[config.StarterWeapons[1]]
 
-		-- Bank some XP so the death penalty has something to take, then wound
-		-- the ghoul so the evade-heal is observable later.
+		-- Bank some XP so the death penalty has something to take.
 		addXp:Invoke(player, 40)
 		eq("XP attribute mirrors the grant", player:GetAttribute("XP"), 40)
 		local levelBefore = player:GetAttribute("Level")
-
 		check("live service owns the ghoul's handle", getEnemyHealth:Invoke(ghoul) ~= nil)
-		damageEnemy:Invoke(ghoul, 20)
-		eq("ghoul wounded for the heal check", getEnemyHealth:Invoke(ghoul), ghoulStats.maxHealth - 20)
 
-		-- Step inside the ghoul's aggro range (well outside the robot's:
-		-- placement is asserted by the pad-safety invariant, and this offset
-		-- keeps the duel one-on-one).
-		local duelSpot = origin + Vector3.new(6, 3, 12)
-		character:PivotTo(CFrame.new(duelSpot))
+		-- Server-side range validation, live: an attack from the spawn pad —
+		-- far beyond any weapon's reach — must change nothing.
+		attack:Invoke(player, ghoul)
+		eq("attack from the pad is rejected (out of range)", getEnemyHealth:Invoke(ghoul), ghoulStats.maxHealth)
+
+		-- Step right up to the ghoul — its LIVE position, not its post: idle
+		-- enemies wander up to wanderRadius from the post, and aiming at the
+		-- post once left the duel spot just beyond blade range, which the
+		-- server correctly rejected. 5 studs is inside every weapon's reach.
+		local ghoulBody = ghoul:FindFirstChild("Body") :: BasePart
+		local livePos = ghoulBody.Position
+		character:PivotTo(CFrame.new(livePos.X + 3, 3, livePos.Z + 4))
+		task.wait(0.2) -- let the pivot replicate before measuring ranges
+
+		-- The real attack path — equipped-weapon lookup, range, cooldown,
+		-- damage — exactly as a click reaches it. This wound also makes the
+		-- evade-heal observable later.
+		attack:Invoke(player, ghoul)
+		eq(
+			("equipped %s hits for its config damage"):format(blade.displayName),
+			getEnemyHealth:Invoke(ghoul),
+			ghoulStats.maxHealth - blade.damage
+		)
+
+		-- Cooldown validation, live: an immediate second swing must be ignored.
+		attack:Invoke(player, ghoul)
+		eq(
+			"immediate second swing is rejected (cooldown)",
+			getEnemyHealth:Invoke(ghoul),
+			ghoulStats.maxHealth - blade.damage
+		)
 
 		local healthBefore = humanoid.Health
 		local hit = waitUntil(12, function()

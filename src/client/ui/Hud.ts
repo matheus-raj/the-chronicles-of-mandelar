@@ -3,7 +3,7 @@
  * sync with stats replicated from the server.
  */
 
-import { Players } from "@rbxts/services";
+import { Players, TweenService } from "@rbxts/services";
 import { Remotes } from "shared/remotes";
 import { GAME_NAME } from "shared/greeting";
 import { PlayerStats } from "shared/types";
@@ -28,6 +28,8 @@ export class Hud {
 	private healthFill!: Frame;
 	private healthText!: TextLabel;
 	private toast!: TextLabel;
+	private vignette!: Frame;
+	private lastHealth = math.huge;
 
 	public start(): void {
 		this.build();
@@ -41,6 +43,7 @@ export class Hud {
 		const player = Players.LocalPlayer;
 		const bindHealth = (character: Model) => {
 			const humanoid = character.WaitForChild("Humanoid") as Humanoid;
+			this.lastHealth = humanoid.Health; // fresh spawn is not "damage"
 			this.renderHealth(humanoid.Health, humanoid.MaxHealth);
 			humanoid.HealthChanged.Connect(() => this.renderHealth(humanoid.Health, humanoid.MaxHealth));
 		};
@@ -59,6 +62,18 @@ export class Hud {
 	private renderHealth(health: number, maxHealth: number): void {
 		this.healthText.Text = `${math.floor(health)} / ${math.floor(maxHealth)} HP`;
 		this.healthFill.Size = UDim2.fromScale(math.clamp(health / math.max(maxHealth, 1), 0, 1), 1);
+
+		// Losing health flashes the screen edge red — the "you are being hit"
+		// signal that works even while the camera faces away from the attacker.
+		if (health < this.lastHealth) this.pulseVignette();
+		this.lastHealth = health;
+	}
+
+	private pulseVignette(): void {
+		this.vignette.BackgroundTransparency = 0.82;
+		TweenService.Create(this.vignette, new TweenInfo(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			BackgroundTransparency: 1,
+		}).Play();
 	}
 
 	private showToast(message: string): void {
@@ -100,11 +115,21 @@ export class Hud {
 			TextTransparency: 1,
 		});
 
+		this.vignette = create("Frame", {
+			Name: "DamageVignette",
+			Size: UDim2.fromScale(1, 1),
+			BackgroundColor3: Color3.fromRGB(180, 30, 30),
+			BackgroundTransparency: 1,
+			BorderSizePixel: 0,
+			ZIndex: 0,
+		});
+
 		create("ScreenGui", {
 			Name: "HUD",
 			ResetOnSpawn: false,
 			IgnoreGuiInset: true,
 			Children: [
+				this.vignette,
 				create("Frame", {
 					Name: "StatsPanel",
 					AnchorPoint: new Vector2(0, 1),

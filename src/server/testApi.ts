@@ -15,10 +15,11 @@
 
 import { ServerStorage } from "@rbxts/services";
 import { create } from "shared/create";
+import { CombatService } from "server/combat/CombatService";
 import { EnemyService } from "server/combat/EnemyService";
 import { PlayerDataService } from "server/data/PlayerDataService";
 
-export function createTestApi(playerData: PlayerDataService, enemies: EnemyService): void {
+export function createTestApi(playerData: PlayerDataService, enemies: EnemyService, combat: CombatService): void {
 	const addXp = create("BindableFunction", { Name: "AddXp" });
 	addXp.OnInvoke = (player: Player, amount: number) => {
 		playerData.addXp(player, amount);
@@ -36,9 +37,16 @@ export function createTestApi(playerData: PlayerDataService, enemies: EnemyServi
 		return enemies.getHandle(model)?.health;
 	};
 
+	// The full server attack path — equipped-weapon lookup, range, cooldown —
+	// exactly as a click reaches it, minus only the client remote.
+	const attack = create("BindableFunction", { Name: "Attack" });
+	attack.OnInvoke = (player: Player, target: Instance) => {
+		combat.attack(player, target);
+	};
+
 	create("Folder", {
 		Name: "TestApi",
-		Children: [addXp, damageEnemy, getEnemyHealth],
+		Children: [addXp, damageEnemy, getEnemyHealth, attack],
 		Parent: ServerStorage,
 	});
 }

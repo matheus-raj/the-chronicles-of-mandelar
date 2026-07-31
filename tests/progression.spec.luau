@@ -52,11 +52,55 @@ eq("maxHealthForLevel(2)", config.maxHealthForLevel(2), 120)
 eq("maxHealthForLevel(5)", config.maxHealthForLevel(5), 180)
 
 -- Tuning constants the rest of the game depends on.
-eq("Combat.attackDamage", config.Combat.attackDamage, 20)
+eq("Weapons.SunforgedBlade.damage", config.Weapons.SunforgedBlade.damage, 20)
 eq("EnemyKinds.Ghoul.maxHealth", config.EnemyKinds.Ghoul.maxHealth, 60)
 eq("EnemyKinds.Ghoul.xpReward", config.EnemyKinds.Ghoul.xpReward, 25)
 eq("EnemyKinds.Robot.maxHealth", config.EnemyKinds.Robot.maxHealth, 90)
 eq("EnemyKinds.Robot.xpReward", config.EnemyKinds.Robot.xpReward, 40)
+
+-- The armoury. Structural checks so a new weapon is covered automatically,
+-- plus the two invariants combat balance leans on.
+do
+	local weaponIds = {}
+	for id in config.Weapons do
+		table.insert(weaponIds, id)
+	end
+	table.sort(weaponIds)
+	check("at least one weapon exists", #weaponIds > 0)
+
+	for _, id in weaponIds do
+		local w = config.Weapons[id]
+		check(("%s: has a displayName"):format(id), typeof(w.displayName) == "string" and w.displayName ~= "")
+		check(("%s: damage is positive"):format(id), typeof(w.damage) == "number" and w.damage > 0)
+		check(("%s: range is positive"):format(id), typeof(w.range) == "number" and w.range > 0)
+		check(("%s: cooldown is positive"):format(id), typeof(w.cooldown) == "number" and w.cooldown > 0)
+
+		for kind, stats in config.EnemyKinds do
+			-- Kiting must stay possible: every weapon outreaches every enemy,
+			-- so a careful player can always trade before the enemy connects.
+			check(
+				("%s: outranges the %s"):format(id, kind),
+				w.range > stats.attackRange,
+				("range %d vs enemy reach %d"):format(w.range, stats.attackRange)
+			)
+			-- And no weapon deletes an enemy in one swing — a fight where the
+			-- enemy never gets to exist isn't a fight.
+			check(
+				("%s: cannot one-shot a %s"):format(id, kind),
+				w.damage < stats.maxHealth,
+				("damage %d vs %d hp"):format(w.damage, stats.maxHealth)
+			)
+		end
+	end
+
+	check("StarterWeapons is not empty", #config.StarterWeapons > 0)
+	for index, id in config.StarterWeapons do
+		check(
+			("StarterWeapons[%d]: %s is a known weapon"):format(index, tostring(id)),
+			config.Weapons[id] ~= nil
+		)
+	end
+end
 
 -- The ground has to be big enough to hold every spawn point, or enemies get
 -- placed off the edge of the world and the test suite would still pass.
