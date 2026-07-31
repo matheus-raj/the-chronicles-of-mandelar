@@ -3,13 +3,17 @@
   "version": "1.0.0",
   "description": "A Roblox game written in TypeScript with roblox-ts",
   "private": true,
+  "packageManager": "pnpm@11.18.0",
   "scripts": {
     "build": "rbxtsc",
     "watch": "rbxtsc -w",
     "serve": "rojo serve",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
     "prettier": "prettier --check \"src/**/*.{ts,tsx}\"",
-    "prettier:fix": "prettier --write \"src/**/*.{ts,tsx}\""
+    "prettier:fix": "prettier --write \"src/**/*.{ts,tsx}\"",
+    "build:place": "rbxtsc && rojo build -o game.rbxlx",
+    "test:logic": "run-in-roblox --place game.rbxlx --script tests/progression.spec.luau",
+    "test:spawn": "run-in-roblox --place game.rbxlx --script tests/spawn.spec.luau"
   },
   "keywords": [
     "roblox",

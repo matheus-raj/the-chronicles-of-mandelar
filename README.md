@@ -10,7 +10,8 @@ Install these once on your machine:
 
 | Tool | Purpose | Install |
 | ---- | ------- | ------- |
-| [Node.js](https://nodejs.org/) (LTS) | Runs the roblox-ts compiler | Download installer |
+| [Node.js](https://nodejs.org/) 22.13+ | Runs the roblox-ts compiler; pnpm 11 requires it | Download installer |
+| [pnpm](https://pnpm.io/) | Package manager for this repo | `corepack enable pnpm` (may need an admin shell) or `npm install -g pnpm` |
 | [Rojo](https://rojo.space/docs/v7/getting-started/installation/) | Syncs compiled code into Studio | `cargo install rojo` or the [Aftman/Rokit](https://github.com/rojo-rbx/rokit) toolchain manager |
 | [Roblox Studio](https://create.roblox.com/) | The editor/runtime for the game | Download from Roblox |
 | **Rojo Studio plugin** | Connects Studio to the local Rojo server | Install from the Studio plugin marketplace or `rojo plugin install` |
@@ -22,13 +23,13 @@ The **roblox-ts** and **Rojo** VS Code extensions are recommended (see
 
 ```bash
 # 1. Install dependencies
-npm install
+pnpm install
 
 # 2. Compile TypeScript -> Luau, and re-compile on every save
-npm run watch
+pnpm watch
 
 # 3. In a second terminal, start the Rojo server
-npm run serve
+pnpm serve
 ```
 
 Then, in Roblox Studio: open a new baseplate, open the **Rojo** plugin, and
@@ -67,18 +68,21 @@ src/
 - `default.project.json` — the Rojo mapping of `out/` folders into Roblox services.
 - `tsconfig.json` — roblox-ts compiler settings.
 - `eslint.config.mjs` — lint rules (flat config, ESLint 9).
+- `pnpm-workspace.yaml` — pins `nodeLinker: hoisted`. Rojo maps `node_modules/@rbxts`
+  into the place, so `node_modules` has to stay flat rather than pnpm's default
+  symlinks-into-`.pnpm` layout. Don't remove it.
 - Compiled Luau lands in `out/` and the runtime library in `include/` — both are gitignored.
 
-## npm scripts
+## Package scripts
 
 | Command | What it does |
 | ------- | ------------ |
-| `npm run build` | Compile once (`rbxtsc`) |
-| `npm run watch` | Compile and re-compile on file changes |
-| `npm run serve` | Start the Rojo server for Studio |
-| `npm run lint` | Lint with ESLint + roblox-ts rules |
-| `npm run prettier` | Check formatting |
-| `npm run prettier:fix` | Auto-format the source |
+| `pnpm build` | Compile once (`rbxtsc`) |
+| `pnpm watch` | Compile and re-compile on file changes |
+| `pnpm serve` | Start the Rojo server for Studio |
+| `pnpm lint` | Lint with ESLint + roblox-ts rules |
+| `pnpm prettier` | Check formatting |
+| `pnpm prettier:fix` | Auto-format the source |
 
 ## Adding libraries
 
@@ -86,9 +90,9 @@ roblox-ts packages are published under the [`@rbxts`](https://www.npmjs.com/org/
 scope. For example:
 
 ```bash
-npm install @rbxts/net       # networking
-npm install @rbxts/roact      # UI (React-like)
-npm install @rbxts/profileservice  # datastore wrapper
+pnpm add @rbxts/net              # networking
+pnpm add @rbxts/roact            # UI (React-like)
+pnpm add @rbxts/profileservice   # datastore wrapper
 ```
 
 Import them like any TypeScript module: `import Roact from "@rbxts/roact";`.
