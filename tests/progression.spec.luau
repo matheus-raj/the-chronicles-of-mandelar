@@ -58,6 +58,21 @@ eq("EnemyKinds.Ghoul.xpReward", config.EnemyKinds.Ghoul.xpReward, 25)
 eq("EnemyKinds.Robot.maxHealth", config.EnemyKinds.Robot.maxHealth, 90)
 eq("EnemyKinds.Robot.xpReward", config.EnemyKinds.Robot.xpReward, 40)
 
+-- The ground has to be big enough to hold every spawn point, or enemies get
+-- placed off the edge of the world and the test suite would still pass.
+do
+	local halfGround = config.World.groundSize / 2
+	for index, spawn in config.EnemySpawns do
+		check(
+			("EnemySpawns[%d]: within the ground slab"):format(index),
+			math.abs(spawn.position.X) <= halfGround and math.abs(spawn.position.Z) <= halfGround,
+			("(%d, %d) outside ±%d"):format(spawn.position.X, spawn.position.Z, halfGround)
+		)
+	end
+	check("World.groundThickness is positive", config.World.groundThickness > 0)
+	check("World.spawnPadSize is positive", config.World.spawnPadSize > 0)
+end
+
 -- Structural checks over the whole registry, so a newly added enemy type is
 -- covered by these without anyone remembering to extend this file.
 for kind, stats in config.EnemyKinds do

@@ -63,6 +63,14 @@ for kind in config.EnemyKinds do
 end
 table.sort(kindIds)
 
+-- Ground height each spawn point expects, keyed by its x/z. Spawn positions are
+-- where an enemy's feet go, so a correctly placed body's underside sits here
+-- regardless of how tall its type is.
+local expectedGroundY: { [string]: number } = {}
+for _, spawn in config.EnemySpawns do
+	expectedGroundY[("%d,%d"):format(spawn.position.X, spawn.position.Z)] = spawn.position.Y
+end
+
 local stale = Workspace:FindFirstChild("Enemies")
 if stale then
 	stale:Destroy()
@@ -106,6 +114,25 @@ if folder then
 
 		local body = enemy:FindFirstChild("Body")
 		check(("%s: has Body part"):format(kind), body ~= nil)
+
+		if body then
+			local part = body :: BasePart
+			local underside = part.Position.Y - part.Size.Y / 2
+			local key = ("%d,%d"):format(part.Position.X, part.Position.Z)
+			local groundY = expectedGroundY[key]
+			check(
+				("%s: stands at a known spawn point"):format(kind),
+				groundY ~= nil,
+				("no spawn point at x/z %s"):format(key)
+			)
+			if groundY then
+				check(
+					("%s: feet rest on the ground, not floating"):format(kind),
+					math.abs(underside - groundY) < 0.01,
+					("underside y = %.3f, expected %.3f"):format(underside, groundY)
+				)
+			end
+		end
 
 		local gui = body and body:FindFirstChild("HealthGui")
 		local label = gui and gui:FindFirstChild("HealthLabel")
