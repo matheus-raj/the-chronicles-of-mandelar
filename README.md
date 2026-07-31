@@ -74,15 +74,20 @@ The first milestone is a complete, code-driven RPG loop:
    you, so you can always run.
 4. Enemies **leash**: drag one too far from its post and it gives up, heals to
    full, and walks home — no farming a fight it can't win from its doorstep.
-5. **Left-click an enemy** within range to attack it (the server validates range
-   and enforces an attack cooldown; the client is never trusted).
-6. When an enemy's HP hits zero it awards XP for its type and respawns after
-   that type's delay.
-7. XP fills the bar; enough XP **levels you up**, raising max health and showing
+5. You spawn armed: the **Sunforged Blade** in hand and the **Verdant Maul** in
+   the hotbar. The blade is quick and even-handed; the maul is short, slow, and
+   fells a ghoul in two hits. Weapons are Tools, so tapping works on mobile.
+6. **Click (or tap) an enemy** to swing — slash animation, damage numbers, hit
+   flashes, and a red screen pulse when something hits *you*. The server
+   resolves every swing from the equipped weapon's config entry: damage, range,
+   and cooldown are validated server-side, and the client is never trusted.
+7. When an enemy's HP hits zero it fades away, awards XP for its type, and
+   respawns after that type's delay.
+8. XP fills the bar; enough XP **levels you up**, raising max health and showing
    a "Level up!" toast.
-8. **Dying costs your unbanked XP** — progress toward the next level resets to
+9. **Dying costs your unbanked XP** — progress toward the next level resets to
    zero, but a level once earned is never lost.
-9. Your level/XP is **saved to a DataStore** and reloaded next time you join.
+10. Your level/XP is **saved to a DataStore** and reloaded next time you join.
 
 > **DataStore note:** persistence only works in a published place, or in Studio
 > with **Game Settings → Security → _Enable Studio Access to API Services_**

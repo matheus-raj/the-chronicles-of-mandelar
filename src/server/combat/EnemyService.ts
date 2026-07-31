@@ -18,6 +18,12 @@ import { Players, RunService, Workspace } from "@rbxts/services";
 import { EnemyKindId, EnemyKinds, EnemySpawns } from "shared/config/game";
 import { create } from "shared/create";
 import { BrainState, decide, flatDistance, initialState } from "server/combat/EnemyBrain";
+import { damageNumber, fadeOut, flash } from "server/combat/Effects";
+
+const HIT_FLASH = Color3.fromRGB(255, 255, 255);
+const SWING_FLASH = Color3.fromRGB(255, 90, 60);
+const PLAYER_DAMAGE_COLOR = Color3.fromRGB(255, 90, 60);
+const DEATH_FADE_SECONDS = 0.35;
 
 export interface EnemyHandle {
 	readonly model: Model;
@@ -93,7 +99,17 @@ export class EnemyService {
 			}
 
 			if (decision.swing && target !== undefined) {
-				target.humanoid.TakeDamage(EnemyKinds[handle.kind].attackDamage);
+				const damage = EnemyKinds[handle.kind].attackDamage;
+				target.humanoid.TakeDamage(damage);
+
+				// The tell: the attacker pulses red, and the number over the
+				// victim's head names the cost — so with two enemies on you,
+				// you can see which one is actually hurting.
+				flash(body, SWING_FLASH, APPEARANCE[handle.kind].color);
+				const root = target.humanoid.RootPart;
+				if (root !== undefined) {
+					damageNumber(root.Position.add(new Vector3(0, 2.5, 0)), damage, PLAYER_DAMAGE_COLOR);
+				}
 			}
 		}
 	}
@@ -163,6 +179,12 @@ export class EnemyService {
 		handle.health = math.max(0, handle.health - amount);
 		this.updateHealthLabel(handle);
 
+		// Taking a hit reads as a white blink, whoever dealt it.
+		const body = handle.model.PrimaryPart;
+		if (body !== undefined) {
+			flash(body, HIT_FLASH, APPEARANCE[handle.kind].color);
+		}
+
 		if (handle.health > 0) return false;
 
 		// Capture kind and origin before destroying the model — the respawn
@@ -227,8 +249,10 @@ export class EnemyService {
 	}
 
 	private despawn(handle: EnemyHandle): void {
+		// Deleted from the map first so the Heartbeat loop stops driving it;
+		// the fading husk left behind is scenery, not an enemy.
 		this.enemies.delete(handle.model);
-		handle.model.Destroy();
+		fadeOut(handle.model, DEATH_FADE_SECONDS);
 	}
 
 	private updateHealthLabel(handle: EnemyHandle): void {

@@ -17,14 +17,37 @@ export const World = {
 	spawnPadSize: 16,
 } as const;
 
-export const Combat = {
-	/** Damage a single player attack deals to an enemy. */
-	attackDamage: 20,
-	/** Maximum distance (studs) between player and enemy for an attack to land. */
-	attackRange: 14,
-	/** Minimum seconds between a player's attacks, enforced on the server. */
-	attackCooldown: 0.5,
-} as const;
+/** The armoury. Add a member here to add a weapon. */
+export type WeaponId = "SunforgedBlade" | "VerdantMaul";
+
+export interface Weapon {
+	/** Shown on the Tool in the hotbar; also the Tool's Name. */
+	readonly displayName: string;
+	/** Damage one swing deals to an enemy. */
+	readonly damage: number;
+	/** Maximum distance (studs) to the target for a swing to land, server-validated. */
+	readonly range: number;
+	/** Minimum seconds between swings, enforced on the server. */
+	readonly cooldown: number;
+}
+
+/**
+ * Per-weapon tuning. The blade is the all-rounder (the pre-weapon numbers,
+ * unchanged); the maul trades reach and speed for hits that fell a ghoul in
+ * two. Appearance lives with the tool-building code in WeaponService — this
+ * file is the gameplay tuning surface.
+ *
+ * Invariants enforced by tests/progression.spec.luau: every weapon outranges
+ * every enemy's attackRange (kiting stays possible), and no weapon one-shots
+ * even the weakest enemy.
+ */
+export const Weapons: { readonly [K in WeaponId]: Weapon } = {
+	SunforgedBlade: { displayName: "Sunforged Blade", damage: 20, range: 14, cooldown: 0.5 },
+	VerdantMaul: { displayName: "Verdant Maul", damage: 45, range: 10, cooldown: 1.4 },
+};
+
+/** Every player gets these on spawn; the first one starts equipped. */
+export const StarterWeapons: ReadonlyArray<WeaponId> = ["SunforgedBlade", "VerdantMaul"];
 
 /** The threats to Mandelar. Add a member here to add an enemy type. */
 export type EnemyKindId = "Ghoul" | "Robot";
